@@ -1,8 +1,9 @@
+require(aautil)
 
 
 #some data prep
 #su <- setkey(extract("su",c("date","bui"),res=data.table),date,bui)
-
+#putrd(su,'su isu=312')
 
 #some functions to replace bits inside ceWrapper
 #preparevix
