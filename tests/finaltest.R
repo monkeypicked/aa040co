@@ -11,17 +11,30 @@ da <- getca()[as.Date(getca())%in%da.global]
 dax <- rev(rev(da)[1:20])
 ce <- rbindlist(lapply(lapply(dax,ceload),data.table))
 
+require(snowfall)
+sfInit(par=F,cpus=1)
+
+
 tail(ceload(dax[1]))
 
 
 if(F) {
   require(snowfall)
   sfInit(par=FALSE,cpus=1)
-  sfLapplyWrap()
   dada <-c("2014-10-22","2014-10-29")
-  xx<-lapply(dada,ceWrap)
-  xx<-lapply(dada,loadWrapper)
-  xx<-sfLapplyWrap(dada,loadWrapper)
-  rm(prem.g)
-  rm(vix.g)
+  xx <- rbindlist(lapply(sfLapplyWrap(dada,ceload),data.table))
+  sfStop()
+  xx[,unique(date)]
+  
+  sfInit(par=FALSE,cpus=2)
+  dax <- rev(rev(da)[1:20])
+  xx<-rbindlist(lapply(sfLapplyWrap(dax,ceload),data.table))
+  sfStop()
+  xx[,unique(date)]
+
+  sfInit(par=FALSE,cpus=5)
+  dax <- rev(rev(da)[1:20])
+  xx<-rbindlist(lapply(sfLapplyWrap(dax,ceload),data.table))
+  sfStop()
+  xx[,unique(date)]
 }
