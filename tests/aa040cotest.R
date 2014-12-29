@@ -1,8 +1,8 @@
 require(aaco)
 require(aa)
-do.call(what=ceload,args=getsi("ce"))
-do.call(what=ceload,c(list(da=c("2014-10-29")),getsi("ce")))
-do.call(what=ceload,c(list(da=c("2014-10-22")),getsi("ce")))
+# do.call(what=ceload,args=getsi("ce"))
+# do.call(what=ceload,c(list(da=c("2014-10-29")),getsi("ce")))
+# do.call(what=ceload,c(list(da=c("2014-10-22")),getsi("ce")))
 
 da <- c("2014-10-22","2014-10-29")
 ce <- rbindlist(lapply(lapply(da,ceload),data.table))
