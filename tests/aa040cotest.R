@@ -1,19 +1,20 @@
+require(aautil)
 require(aaco)
 require(aa)
+aatopselect("test")
+
+
 # do.call(what=ceload,args=getsi("ce"))
 # do.call(what=ceload,c(list(da=c("2014-10-29")),getsi("ce")))
 # do.call(what=ceload,c(list(da=c("2014-10-22")),getsi("ce")))
 
 da <- c("2014-10-22","2014-10-29")
-ce <- rbindlist(lapply(lapply(da,ceload),data.table))
-#putrd(rbindlist(lapply(lapply(da,ceload),data.table)),"ce test")
+bui <- buiindirs()
+su.g <- setkey(setnames(data.table(expand.grid(da,bui)),c('date','bui')),date,bui)[]
+
+ce <- rbindlist(lapply(lapply(da,ceload,nfac=1),data.table))
 
 expect_equal(ce[,sort(unique(date))],sort(unique(da)))
-
-da.g <- getca()[as.Date(getca())%in%da.global]
-dax <- rev(rev(da.g)[1:20])
-ce <- rbindlist(lapply(lapply(dax,ceload),data.table))
-
 
 #slower bit
 if(F) {
