@@ -8,6 +8,7 @@ da <- c("2014-10-22","2014-10-29")
 ce <- rbindlist(lapply(lapply(da,ceload),data.table))
 #putrd(rbindlist(lapply(lapply(da,ceload),data.table)),"ce test")
 
+expect_equal(ce[,sort(unique(date))],sort(unique(da)))
 
 da.g <- getca()[as.Date(getca())%in%da.global]
 dax <- rev(rev(da.g)[1:20])
