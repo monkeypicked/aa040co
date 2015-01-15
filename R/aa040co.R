@@ -1,7 +1,3 @@
-require(aautil)
-require(aapa)
-require(aa0) #meantri, dfrce, addbench
-require(aace)
 
 #' get global zoo panels
 #'
@@ -67,7 +63,8 @@ cewrap <- function (da="2014-10-29", win=-(1:230), normalise="NONE", nfac=20,
 #' @export
 dtce <- function (cetab, dat = cetab[,max(date)]) 
 {
-  stopifnot(valda(dat) && length(dat) == 1)
+  stopifnot(length(dat) == 1)
+  #stopifnot(valda(dat) && length(dat) == 1)
   cetab <- data.frame(cetab[date==dat])
   jbui <- grep("bui",colnames(cetab))
   jloadings <- grep("loadings",colnames(cetab))
@@ -124,3 +121,4 @@ dtce <- function (cetab, dat = cetab[,max(date)])
   stopifnot(valce(ans))
   ans
 }
+
