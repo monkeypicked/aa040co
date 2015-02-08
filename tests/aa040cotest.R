@@ -1,6 +1,8 @@
 require(aautil)
-aatopselect("test")
+#bui <- getrd(8)[BICS_LEVEL_CODE_ASSIGNED==17101013,bui]
+#aatopselect("prod")
 require(aaco)
+require(aapa)
 #require(aa)
 require(quadprog)
 
@@ -9,19 +11,28 @@ require(quadprog)
 # do.call(what=ceload,c(list(da=c("2014-10-29")),getsi("ce")))
 # do.call(what=ceload,c(list(da=c("2014-10-22")),getsi("ce")))
 
-da <- c("2014-10-22","2014-10-29")
-bui <- buiindirs()
-su.g <<- setkey(setnames(data.table(expand.grid(da,bui,stringsAsFactors=FALSE)),c('date','bui')),date,bui)[]
+#da <- c("2014-10-22","2014-10-29")
+#bui <- buiindirs()
+#su.g <<- setkey(setnames(data.table(expand.grid(da,bui,stringsAsFactors=FALSE)),c('date','bui')),date,bui)[]
 #su.g <<- setkey(setnames(data.table(expand.grid(da,colnames(getbdh(da=da[1])),stringsAsFactors=FALSE)),c('date','bui')),date,bui)[]   #somewhat circular
+.global()
+damax <- max(index(getstep()))
+su.g <<- cart(data.table(bui=nonadt()[date==max(daw.global),unique(bui)]),data.table(date=nonadt()[,unique(date)]))  #nonasu() #this is BROKEN
+bui<-su.g[,unique(bui)]
+da<-su.g[,as.Date(unique(date))]
 
-expect_false(is.factor(su.g[da[1]][,bui]))
-su.g[da[1]][,bui]
-buiindirs()
+
+
+
+expect_false(is.factor(su.g[date==da[1]][,bui]))
+#su.g[da[1]][,bui]
+#buiindirs()
 #expect_equal(class(getbdh(da=da[1],bui=colnames(getbdh(da=da[1])),field="prem.g",win=-230:-1)),"zoo") #prem.g does not exist yet
 
 
 getbdhgl() #added this 01-11, does what is wanted ie load prem.g
-ce <- rbindlist(lapply(lapply(da,ceload,nfac=1),data.table))
+
+ce <- rbindlist(lapply(lapply(max(da),ceload,nfac=5),data.table))
 expect_equal(ce[,sort(unique(date))],sort(unique(da)))
 
 #slower bit
@@ -36,3 +47,4 @@ expect_equal(ce[,sort(unique(date))],sort(unique(da)))
 #   #sfStop()
 #   putrd(xx,"ce 20 final dates")
 # }
+
