@@ -1,10 +1,13 @@
 require(aautil)
 #bui <- getrd(8)[BICS_LEVEL_CODE_ASSIGNED==17101013,bui]
-#aatopselect("prod")
+aatopselect("test")
 require(aaco)
 require(aapa)
 #require(aa)
 require(quadprog)
+getbdhgl(myc='dt')
+
+getpi()
 
 
 # do.call(what=ceload,args=getsi("ce"))
