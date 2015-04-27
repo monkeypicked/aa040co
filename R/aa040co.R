@@ -1,62 +1,3 @@
-#' Get panel for universe defined by su
-#'
-#' gets the panel corresponding to a securityuniverse, either applying locf or focb to the
-#' securityuniverse, then optionally extracting one date and applying focb to that.  The default
-#' is locf-focb, which means that the latest ex-ante universe identifies the cross-section, whose
-#' history is then extracted.  This is the correct usage for 'rolling ex-ante estimation' on a
-#' dynamic univers.
-#' @param su security universe, a data.table with columns date, bui
-#' @param mnem filename without extension
-#' @param mydir directory
-#' @param myclass 'zoo' or 'dt' is returned
-#' @param da reference date or datum for universe (this in incremented each time in a rolling estimation)
-#' @param la maximum lag to access as a positive number, so data returned starts at (da-lag)
-#' @param roll flag taking values 'locf' or 'focb', the former being correct for ex-ante estimation
-#' @param fixed logical flag indicating whether the universe is fixed as of da, or dynamic, defaults TRUE
-#' @param ... passed to dern to construct mydir
-#' @examples
-#' \dontrun{
-#' su <- getrdatv('jo','su')
-#' pa1 <- getpi(su)
-#' pa2 <- getpi(su,fix=F)
-#' pa3 <- getpi(su,da='2011-11-30')
-#' pa4 <- getpi(su,fix=F,da='2011-11-30')
-#' mean(is.na(pa2))-mean(is.na(pa1))#has more na because history screened out
-#' mean(is.na(pa4))-mean(is.na(pa3))#has more na because history screened out
-#' }
-#' @export
-#' @family accessor
-getpi <- function(su=getrdatv('jo','su'),
-                  x=prem.g, 
-                  mydir = dern(...), 
-                  myclass=c("zoo","dt"),
-                  da=max(x[,date]),
-                  la=200,
-                  roll=TRUE,
-                  fixed=TRUE,
-                  ...) {
-  myclass <- match.arg(myclass)
-  stopifnot(mode(da)=="character" && da%in%x[,date])
-  stopifnot(
-    is(su,'data.table') && 
-      all(c('bui','date')%in%colnames(su)) && 
-      all(su[,date]%in%derca()[,date]) && 
-      length(setdiff(su[,unique(bui)],x[,unique(bui)]))==0)
-  datevec <- x[,list(date=unique(date))][date<=da,list(date=sort(date,decreasing=TRUE))][1:la][,rev(date)]
-  if(su[,mode(date)!='character']) su[,date:=as.character(date)]
-  #interpolate su onto the basis of x, note the ta==1 which is then deleted
-  su1 <- unique(setkey(su[,ta:=1],bui,date))[CJ(su[,unique(bui)],x[,unique(date)]),roll=roll][,list(bui,date,ta)][ta==1][,ta:=NULL]
-  if(fixed) {
-    su2 <- setnames(CJ(setkey(su1,date)[da,bui],datevec),c('bui','date'))
-  } else {
-    su2 <- setkey(su1,date)[datevec]
-  }
-  x <- setkey(x,bui,date)[setkey(su2,bui,date)]
-  if(myclass=="zoo") {
-    mz(tabtomat(data.frame(x)))
-  } else { x }
-}
-
 #' get global zoo panels
 #'
 #' @export
@@ -74,9 +15,12 @@ getbdmgl <- function(field=list(list(vix.g="VIX")),myclass='zoo') {
 #' return windowed zoo panel from global panel
 #'
 #' @export
-getbdh <- function(da=su.g[,max(date)],bui=colnames(x),field="prem.g",win=-(1:230)) {
-  x <- get(field,envir=globalenv())
-  x[as.Date(offda(da,win)),bui]
+getbdh <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)],bui],field="prem.g",win=-(1:230)) {
+  if(0==length(bui)*length(da)) {
+    return(NULL) 
+  } else { 
+    get(field,envir=globalenv())[as.Date(offda(da,win)),bui]
+  }
 }
 
 #' outer wrapper, loads absent global objects, calls cewrap
@@ -259,3 +203,64 @@ addbench <- function(
   ce$poco <- matrix(0,n,1,dimn=list(bui,NULL))
   ce
 }
+
+
+#getpi is overcomplex; slow, probably buggy - replaced with getbdh which just uses zoo - simples
+# #' Get panel for universe defined by su
+# #'
+# #' gets the panel corresponding to a securityuniverse, either applying locf or focb to the
+# #' securityuniverse, then optionally extracting one date and applying focb to that.  The default
+# #' is locf-focb, which means that the latest ex-ante universe identifies the cross-section, whose
+# #' history is then extracted.  This is the correct usage for 'rolling ex-ante estimation' on a
+# #' dynamic univers.
+# #' @param su security universe, a data.table with columns date, bui
+# #' @param mnem filename without extension
+# #' @param mydir directory
+# #' @param myclass 'zoo' or 'dt' is returned
+# #' @param da reference date or datum for universe (this in incremented each time in a rolling estimation)
+# #' @param la maximum lag to access as a positive number, so data returned starts at (da-lag)
+# #' @param roll flag taking values 'locf' or 'focb', the former being correct for ex-ante estimation
+# #' @param fixed logical flag indicating whether the universe is fixed as of da, or dynamic, defaults TRUE
+# #' @param ... passed to dern to construct mydir
+# #' @examples
+# #' \dontrun{
+# #' su <- getrdatv('jo','su')
+# #' pa1 <- getpi(su)
+# #' pa2 <- getpi(su,fix=F)
+# #' pa3 <- getpi(su,da='2011-11-30')
+# #' pa4 <- getpi(su,fix=F,da='2011-11-30')
+# #' mean(is.na(pa2))-mean(is.na(pa1))#has more na because history screened out
+# #' mean(is.na(pa4))-mean(is.na(pa3))#has more na because history screened out
+# #' }
+# #' @export
+# #' @family accessor
+# getpi <- function(su=getrdatv('jo','su'),
+#                   x=prem.g, 
+#                   mydir = dern(...), 
+#                   myclass=c("zoo","dt"),
+#                   da=max(x[,date]),
+#                   la=200,
+#                   roll=TRUE,
+#                   fixed=TRUE,
+#                   ...) {
+#   myclass <- match.arg(myclass)
+#   stopifnot(mode(da)=="character" && da%in%x[,unique(date)])
+#   stopifnot(
+#     is(su,'data.table') && 
+#       all(c('bui','date')%in%colnames(su)) && 
+#       all(su[,date]%in%derca()[,date]) && 
+#       length(setdiff(su[,unique(bui)],x[,unique(bui)]))==0)
+#   datevec <- x[,list(date=unique(date))][date<=da,list(date=sort(date,decreasing=TRUE))][1:la][,rev(date)]
+#   if(su[,mode(date)!='character']) su[,date:=as.character(date)]
+#   #interpolate su onto the basis of x, note the ta==1 which is then deleted
+#   su1 <- unique(setkey(su[,ta:=1],bui,date))[CJ(su[,unique(bui)],x[,unique(date)]),roll=roll][,list(bui,date,ta)][ta==1][,ta:=NULL]
+#   if(fixed) {
+#     su2 <- setnames(CJ(setkey(su1,date)[da,bui],datevec),c('bui','date'))
+#   } else {
+#     su2 <- setkey(su1,date)[datevec]
+#   }
+#   x <- setkey(x,bui,date)[setkey(su2,bui,date)]
+#   if(myclass=="zoo") {
+#     mz(tabtomat(data.frame(x)))
+#   } else { x }
+# }

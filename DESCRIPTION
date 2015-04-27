@@ -6,7 +6,6 @@ Date: 2014-12-10
 Author: GH
 Maintainer: Who to complain to <yourfault@somewhere.net>
 Depends:
-    aautil,aapa,aace,
-    data.table
+    aautil,aapa,aace,data.table
 Description: covariance estimation
 License: contract
