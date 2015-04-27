@@ -1,3 +1,12 @@
+
+deraace <- function(su=getrdatv("jo","su"),da=su[,sort(unique(date))],...) {
+  x <- vector("list",length(da))
+  for(i in seq_along(da)) {
+    x[[i]] <- data.table(cewrap(pa=getbdh(su=su,da=da[i])))#,...))
+  }
+  putrdatv(rbindlist(x),"jo","ce")
+}
+
 #' get global zoo panels
 #'
 #' @export
@@ -38,12 +47,10 @@ ceload <- function(...,fieldrd=list(list(prem.g="x0700redoto"),list(mcap.g="x070
 #' derive ce
 #'
 #' @export
-cewrap <- function (da=su.g[,max(date)], win=-(1:230), normalise="NONE", nfac=20,
-                       applyvix=TRUE, mixvix=.5, bench="equal",...) {
-  pa <- getpi(da=da,su=su.g,mnem = "x0700redoto")
-  #pa <- getbdh(da=da,bui=su.g[date==da][,bui],field="prem.g",win=win)
+cewrap <- function (pa=getbdh(), normalise="NONE", nfac=20, applyvix=TRUE, mixvix=.5, bench="equal",...) {
+  da <- max(index(pa))
   if (applyvix) {
-     vix <- vix.g #should be loaded from 0502VIX
+     vix <- vix.g 
      vixinverse <- 1/(mixvix * vix + (1 - mixvix) * 
                         rollapply(vix,6 * 52, mean, align = "right", na.rm = T, fill = NA))
      pa <- sweep(pa, MARGIN = 1, FUN = "*", 
@@ -54,10 +61,8 @@ cewrap <- function (da=su.g[,max(date)], win=-(1:230), normalise="NONE", nfac=20
           pa,
           range.factors = c(nfac,nfac), 
           ...)
-  dfrce(addbench(
-          fm, 
-          mcap = mcap.g[match(as.Date(da), index(mcap.g)),,drop = FALSE], bench = bench
-          ),da=da)
+  fm1 <- addbench(fm,mcap = mcap.g[match(as.Date(da), index(mcap.g)),,drop = FALSE], bench = bench)
+  dfrce(fm1,da=da)
 }
 
 
@@ -128,8 +133,7 @@ cewrap <- function (da=su.g[,max(date)], win=-(1:230), normalise="NONE", nfac=20
 #dfrce - returns ce as suitably labelled dataframe
 
 #' @export
-`dfrce` <- function(x,
-                    dat=getda("no")) 
+`dfrce` <- function(x,dat=max(index(x))) 
 {
   colnames(x$loadings) <- 1:ncol(x$loadings)  #fix colnames because data.frame prepends object name
   colnames(x$fmp) <- 1:ncol(x$fmp)
