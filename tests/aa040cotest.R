@@ -1,29 +1,17 @@
 require(aautil)
-#bui <- getrd(8)[BICS_LEVEL_CODE_ASSIGNED==17101013,bui]
 aatopselect("test")
 require(aaco)
 require(aapa)
-#require(aa)
 require(quadprog)
 require(testthat)
 
 
-# do.call(what=ceload,args=getsi("ce"))
-# do.call(what=ceload,c(list(da=c("2014-10-29")),getsi("ce")))
-# do.call(what=ceload,c(list(da=c("2014-10-22")),getsi("ce")))
-
-#da <- c("2014-10-22","2014-10-29")
-#bui <- buiindirs()
-#su.g <<- setkey(setnames(data.table(expand.grid(da,bui,stringsAsFactors=FALSE)),c('date','bui')),date,bui)[]
-#su.g <<- setkey(setnames(data.table(expand.grid(da,colnames(getbdh(da=da[1])),stringsAsFactors=FALSE)),c('date','bui')),date,bui)[]   #somewhat circular
-# .global()
-# damax <- max(index(getstep()))
-# su.g <<- cart(data.table(bui=nonadt()[date==max(daw.global),unique(bui)]),data.table(date=nonadt()[,unique(date)]))  #nonasu() #this is BROKEN
-# bui<-su.g[,unique(bui)]
-# da<-su.g[,as.Date(unique(date))]
-
+#getbdhgl-----
 getbdhgl()
-getbdmgl()
+expect_true(exists("prem.g"))
+expect_true(exists("vix.g"))
+
+#getbdh-----
 su <- getrdatv("jo","su")
 win <- -100:0
 x <- getbdh(su=su,win=win)
@@ -51,29 +39,15 @@ expect_equal(dim(x3),c(length(win),nrow(sux)))
 #prior to first date
 expect_warning(expect_true(is.null(getbdh(su=su,win=win,da=offda(su[,min(date)],-1)))))
 
+#cewrap-----
+fms.df <- cewrap(getbdh(su))
 
+#dfrce-----[internal to cewrap]
+#addbench-----[internal to cewrap]
+#ceload-----[not useful if exists(globals)]
 
-expect_false(is.factor(su.g[date==da[1]][,bui]))
-#su.g[da[1]][,bui]
-#buiindirs()
-#expect_equal(class(getbdh(da=da[1],bui=colnames(getbdh(da=da[1])),field="prem.g",win=-230:-1)),"zoo") #prem.g does not exist yet
-
-
-getbdhgl() #added this 01-11, does what is wanted ie load prem.g
-
-ce <- rbindlist(lapply(lapply(max(da),ceload,nfac=5),data.table))
-expect_equal(ce[,sort(unique(date))],sort(unique(da)))
-
-#slower bit
-# if(FALSE) {
-#   sfInit(par=FALSE)
-#   system.time(xx<-rbindlist(lapply(sfLapplyWrap(dax,ceload),data.table)))
-#   sfStop()
-#   xx[,unique(date)]
-# 
-#   sfInit(par=TRUE,cpus=5)
-#   system.time(xx<-rbindlist(lapply(sfLapplyWrap(dax,ceload),data.table)))
-#   #sfStop()
-#   putrd(xx,"ce 20 final dates")
-# }
-
+#conversion back and forth
+co <- getrdatv("jo","co")
+co <- co[date==co[,max(date)],]
+co1 <- data.table(dfrce(dtce(co))) #round trip
+expect_equal(vcvce(dtce(co))$T,vcvce(dtce(co))$T)

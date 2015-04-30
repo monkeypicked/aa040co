@@ -1,28 +1,64 @@
 
-deraace <- function(su=getrdatv("jo","su"),da=su[,sort(unique(date))],...) {
+#' top-level derive method for covariance table
+#'
+#' loads data to global if not exists; loops through date estimating co, convert to data.table, save to rd
+#' 
+#' Details (body)
+#' 
+#' @param su securityuniverse object
+#' @param da date of class Date
+#' @param verbose flag for printing date
+#' @param nfac number of factors
+#' @param ... passed to cewrap
+#' @family top level
+#' @examples 
+#' \dontrun{
+#' deraaco()
+#' }
+#' @export
+deraaco <- function(su=getrdatv("jo","su"),da=su[,sort(unique(date))],verbose=TRUE,nfac=20,...) {
+  if(! exists("prem.g",envir=globalenv())) getbdhgl() #gets latest premium, vix, mcap
   x <- vector("list",length(da))
   for(i in seq_along(da)) {
-    x[[i]] <- data.table(cewrap(pa=getbdh(su=su,da=da[i])))#,...))
+    if(verbose) print(da[i])
+    x[[i]] <- data.table(cewrap(pa=getbdh(su=su,da=da[i]),nfac=nfac,...))
   }
-  putrdatv(rbindlist(x),"jo","ce")
+  putrdatv(rbindlist(x),"jo","co")
 }
 
 #' get global zoo panels
 #'
+#' loads timeseries required for co estimation
+#' 
+#' @param field named list of derived panels to load; they are assigned in the global environment, with the name in the list
+#' @family internal
+#' @examples 
+#' \dontrun{
+#' getbdhgl()
+#' exists('prem.g') #true
+#' }
 #' @export
 getbdhgl <- function(field=list(list(prem.g="x0700redoto"),list(mcap.g="x0702mcap"),list(vix.g="x0502vix")),myclass='zoo') {
   x <- lapply(field,function(field) {assign(x=names(field),value=getstep(unlist(field),n='001',myclass=myclass),envir=globalenv())})
 }
 
-#' get global macro zoo panels
-#'
-#' @export
-getbdmgl <- function(field=list(list(vix.g="VIX")),myclass='zoo') {
-  x <- lapply(field,function(field) {assign(x=names(field),value=getstep("VIX",n="000",ty='m',myclass=myclass),envir=globalenv())})
-}
 
 #' return windowed zoo panel from global panel
 #'
+#' Description (body)
+#' 
+#' Details (body)
+#' 
+#' @param su securityuniverse object
+#' @param da date of class Date, forms the datum for the lags in win
+#' @param bui identifiers for inclusion
+#' @param field name of global zoo panel from which to extract
+#' @param win window normally negative (prior) lags referred to da
+#' @family utility
+#' @examples 
+#' \dontrun{
+#' getbdh()
+#' }
 #' @export
 getbdh <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)],bui],field="prem.g",win=-(1:230)) {
   if(0==length(bui)*length(da)) {
@@ -32,27 +68,30 @@ getbdh <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)]
   }
 }
 
-#' outer wrapper, loads absent global objects, calls cewrap
-#'
-#' @export
-ceload <- function(...,fieldrd=list(list(prem.g="x0700redoto"),list(mcap.g="x0702mcap")),fieldm="vix.g",isu=greprd()) {
-  if(any(!unlist(lapply(names(unlist(fieldrd)),exists)))) {getbdhgl(field=fieldrd) }
-  if(any(!exists(fieldm))) {getbdmgl() }
-  if(!exists('su.g')) {su.g<<-getrd(isu)}
-  cewrap(...)
-}
-
-
-
 #' derive ce
 #'
+#' high-level covariance estimation
+#' 
+#' takes panel of returns, applies normalisations, estimates ce, adds benchmark data, returns as dataframe
+#' 
+#' @param pa zoo panel (normally returns)
+#' @param normalise flag to redistribute - see aautil::zoonorm()
+#' @param nfac # factors in PCA
+#' @param applyvix flag to scale historical returns to 'today's vol'
+#' @param mixvix bayes adjustment to vix rescaling, strength of shrinkage to mean
+#' @param bench type of benchmark weights
+#' @param ... passed to fms2
+#' @examples 
+#' \dontrun{
+#' cewrap()
+#' }
 #' @export
 cewrap <- function (pa=getbdh(), normalise="NONE", nfac=20, applyvix=TRUE, mixvix=.5, bench="equal",...) {
   da <- max(index(pa))
   if (applyvix) {
-     vix <- vix.g 
+     vix <- na.locf(vix.g )
      vixinverse <- 1/(mixvix * vix + (1 - mixvix) * 
-                        rollapply(vix,6 * 52, mean, align = "right", na.rm = T, fill = NA))
+                        rollapply(vix,6 * 52, mean, align = "right", na.rm = T, fill = 'extend'))
      pa <- sweep(pa, MARGIN = 1, FUN = "*", 
                  STAT = vixinverse[index(pa),]/as.numeric(vixinverse[as.Date(da), ]))
   }
@@ -66,74 +105,98 @@ cewrap <- function (pa=getbdh(), normalise="NONE", nfac=20, applyvix=TRUE, mixvi
 }
 
 
-#' extract object of class 'ce' from a ce table
+#' extract object of class 'ce' from a co table
 #'
+#'
+#'
+#' largely for historical reasons ce objects are converted to a dataframe - this function converts the dataframe back to a 'ce'
+#' 
+#' @param cetab a data.frame or data.table
+#' @param dat the date to extract
+#' @family conversion
+#' @examples 
+#' \dontrun{
+#' require(aace)
+#' vcvce(dtce(getrdatv("jo","co"))) #covariance matrices
+#' }
 #' @export
-# dtce <- function (cetab, dat = cetab[,max(date)]) 
-# {
-#   stopifnot(length(dat) == 1)
-#   #stopifnot(valda(dat) && length(dat) == 1)
-#   cetab <- data.frame(cetab[date==dat])
-#   jbui <- grep("bui",colnames(cetab))
-#   jloadings <- grep("loadings",colnames(cetab))
-#   jfmp <- grep("fmp",colnames(cetab))
-#   jhpl <- grep("hpl",colnames(cetab))
-#   jmethod <- grep("method",colnames(cetab))
-#   jfull <- grep("full",colnames(cetab))
-#   juniqueness <- grep("uniqueness",colnames(cetab))
-#   jsdev <- grep("sdev",colnames(cetab))
-#   jqua <- grep("qua",colnames(cetab))
-#   jmvp <- match("mvp",colnames(cetab))
-#   jmcp <- match("mcp",colnames(cetab))
-#   jevp <- match("evp",colnames(cetab))
-#   jbeta <- grep("beta",colnames(cetab))
-#   jpoco <- grep("poco",colnames(cetab))
-#   bui <- cetab[,jbui,drop=TRUE]
-#   attributes(bui) <- NULL
-#   ifull <- which(cetab[,jfull]=="1")
-#   factors <- 1:ncol(cetab[,jloadings,drop=FALSE])
-#   ans <- list(
-#     loadings=as.matrix(cetab[,jloadings,drop=FALSE]), 
-#     fmp=as.matrix(cetab[,jfmp,drop=FALSE]),        
-#     hpl=as.matrix(cetab[,jhpl,drop=FALSE]),        
-#     method=as.matrix(cetab[,jmethod,drop=FALSE]),                   
-#     full=as.matrix(cetab[,jfull,drop=FALSE]),     
-#     uniqueness=as.matrix(cetab[,juniqueness,drop=FALSE]),
-#     sdev=as.matrix(cetab[,jsdev,drop=FALSE]),
-#     qua=as.matrix(cetab[,jqua,drop=FALSE]),
-#     evp=as.matrix(cetab[,jevp,drop=FALSE]),
-#     mcp=as.matrix(cetab[,jmcp,drop=FALSE]),
-#     mvp=as.matrix(cetab[,jmvp,drop=FALSE]),
-#     beta=as.matrix(cetab[,jbeta,drop=FALSE]),
-#     poco=as.matrix(cetab[,jpoco,drop=FALSE]),
-#     weight=NULL,
-#     call="restored"
-#   )
-#   #change mode for logical
-#   mode(ans$full) <- "numeric"
-#   mode(ans$full) <- "logical"
-#   #label
-#   dimnames(ans$loadings) <- list(bui,psz("loadings",factors))
-#   dimnames(ans$fmp) <- list(bui,psz("fmp",factors))
-#   dimnames(ans$hpl) <- list(bui,psz("hpl",factors))
-#   dimnames(ans$method) <- list(bui,psz("method",factors))
-#   dimnames(ans$full) <- list(bui,"full")
-#   dimnames(ans$uniqueness) <- list(bui,"uniqueness")
-#   dimnames(ans$sdev) <- list(bui,"sdev")
-#   dimnames(ans$evp) <- list(bui,"evp")
-#   dimnames(ans$mcp) <- list(bui,"mcp")
-#   dimnames(ans$mvp) <- list(bui,"mvp")
-#   dimnames(ans$beta) <- list(bui,c("evp","mcp","mvp"))
-#   dimnames(ans$poco) <- list(bui,"poco")
-#   class(ans) <- "ce"
-#   #stopifnot(valce(ans))
-#   ans
-# }
+dtce <- function (cetab, dat = cetab[,max(date)]) 
+{
+  stopifnot(length(dat) == 1)
+  #stopifnot(valda(dat) && length(dat) == 1)
+  cetab <- data.frame(cetab[date==dat])
+  jbui <- grep("bui",colnames(cetab))
+  jloadings <- grep("loadings",colnames(cetab))
+  jfmp <- grep("fmp",colnames(cetab))
+  jhpl <- grep("hpl",colnames(cetab))
+  jmethod <- grep("method",colnames(cetab))
+  jfull <- grep("full",colnames(cetab))
+  juniqueness <- grep("uniqueness",colnames(cetab))
+  jsdev <- grep("sdev",colnames(cetab))
+  jqua <- grep("qua",colnames(cetab))
+  jmvp <- match("mvp",colnames(cetab))
+  jmcp <- match("mcp",colnames(cetab))
+  jevp <- match("evp",colnames(cetab))
+  jbeta <- grep("beta",colnames(cetab))
+  jpoco <- grep("poco",colnames(cetab))
+  bui <- cetab[,jbui,drop=TRUE]
+  attributes(bui) <- NULL
+  ifull <- which(cetab[,jfull]=="1")
+  factors <- 1:ncol(cetab[,jloadings,drop=FALSE])
+  ans <- list(
+    loadings=as.matrix(cetab[,jloadings,drop=FALSE]), 
+    fmp=as.matrix(cetab[,jfmp,drop=FALSE]),        
+    hpl=as.matrix(cetab[,jhpl,drop=FALSE]),        
+    method=as.matrix(cetab[,jmethod,drop=FALSE]),                   
+    full=as.matrix(cetab[,jfull,drop=FALSE]),     
+    uniqueness=as.matrix(cetab[,juniqueness,drop=FALSE]),
+    sdev=as.matrix(cetab[,jsdev,drop=FALSE]),
+    qua=as.matrix(cetab[,jqua,drop=FALSE]),
+    evp=as.matrix(cetab[,jevp,drop=FALSE]),
+    mcp=as.matrix(cetab[,jmcp,drop=FALSE]),
+    mvp=as.matrix(cetab[,jmvp,drop=FALSE]),
+    beta=as.matrix(cetab[,jbeta,drop=FALSE]),
+    poco=as.matrix(cetab[,jpoco,drop=FALSE]),
+    weight=NULL,
+    call="restored"
+  )
+  #change mode for logical
+  mode(ans$full) <- "numeric"
+  mode(ans$full) <- "logical"
+  #label
+  dimnames(ans$loadings) <- list(bui,psz("loadings",factors))
+  dimnames(ans$fmp) <- list(bui,psz("fmp",factors))
+  dimnames(ans$hpl) <- list(bui,psz("hpl",factors))
+  dimnames(ans$method) <- list(bui,psz("method",factors))
+  dimnames(ans$full) <- list(bui,"full")
+  dimnames(ans$uniqueness) <- list(bui,"uniqueness")
+  dimnames(ans$sdev) <- list(bui,"sdev")
+  dimnames(ans$evp) <- list(bui,"evp")
+  dimnames(ans$mcp) <- list(bui,"mcp")
+  dimnames(ans$mvp) <- list(bui,"mvp")
+  dimnames(ans$beta) <- list(bui,c("evp","mcp","mvp"))
+  dimnames(ans$poco) <- list(bui,"poco")
+  class(ans) <- "ce"
+  #stopifnot(valce(ans))
+  ans
+}
 
-#dfrce - returns ce as suitably labelled dataframe
-
+#dfrce - convert ce to a dataframe for storage as co
+#'
+#'
+#'
+#' largely for historical reasons ce objects are converted to a dataframe co
+#' 
+#' @param x an object of class ce; see package aace
+#' @param dat the date to assign it
+#' @family conversion
+#' @examples 
+#' \dontrun{
+#' require(aace)
+#' dfrce(dtce(getrdatv("jo","co"))) #a round trip: get a stored co object, convert to ce for one date, convert back to co
+#' }
 #' @export
-`dfrce` <- function(x,dat=max(index(x))) 
+dfrce <- function(x,dat=max(index(x))) 
 {
   colnames(x$loadings) <- 1:ncol(x$loadings)  #fix colnames because data.frame prepends object name
   colnames(x$fmp) <- 1:ncol(x$fmp)
@@ -162,6 +225,17 @@ cewrap <- function (pa=getbdh(), normalise="NONE", nfac=20, applyvix=TRUE, mixvi
   res
 }
 
+interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su"))) {
+  ce <- dtce(co)
+  stopifnot(all(sort(colnames(pa))==sort(buice(ce))))
+  i <- is.na(coredata(pa))
+  paz <- pa
+  coredata(paz)[i] <- 0 #this does not affect the result if pa has same na as estimation window
+  coredata(pa)[i] <- coredata(msce(x=ce,ret=paz))[i]
+  pa
+}
+
+#internals----------------------------------------
 #' @export
 addbench <- function(
   ce,
@@ -208,6 +282,7 @@ addbench <- function(
   ce
 }
 
+#presumed junk----------------------------------------
 
 #getpi is overcomplex; slow, probably buggy - replaced with getbdh which just uses zoo - simples
 # #' Get panel for universe defined by su
@@ -268,3 +343,15 @@ addbench <- function(
 #     mz(tabtomat(data.frame(x)))
 #   } else { x }
 # }
+
+# getbdmgl <- function(field=list(list(vix.g="VIX")),myclass='zoo') {
+#   x <- lapply(field,function(field) {assign(x=names(field),value=getstep("VIX",n="000",ty='m',myclass=myclass),envir=globalenv())})
+# }
+
+# ceload <- function(...,fieldrd=list(list(prem.g="x0700redoto"),list(mcap.g="x0702mcap")),fieldm="vix.g",isu=greprd()) {
+#   if(any(!unlist(lapply(names(unlist(fieldrd)),exists)))) {getbdhgl(field=fieldrd) }
+#   if(any(!exists(fieldm))) {getbdmgl() }
+#   if(!exists('su.g')) {su.g<<-getrd(isu)}
+#   cewrap(...)
+# }
+
