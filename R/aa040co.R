@@ -355,3 +355,89 @@ addbench <- function(
 #   cewrap(...)
 # }
 
+#--------na interpolation section
+
+#' getzco - covariance-based (PCA) interpolator 
+#' 
+#' @export
+#' 
+getzco <- function(co=getrd(101)) {
+  ce <- dtce(co)
+  fmpce(ce)%*%t(ldgce(ce))
+}
+
+
+#' getzte - industry-based interpolator
+#' 
+#' @export
+#' 
+getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)]) {
+  buix <- su[date==da,unique(bui)]
+  te <- setkey(te[buix,list(bui,bcode,BICS_REVENUE_PERC_LEVEL_ASSIGNED)],bui)
+  setkey(te[,BRPLA:=sum(BICS_REVENUE_PERC_LEVEL_ASSIGNED),list(bui,bcode)],bui,bcode)[,BICS_REVENUE_PERC_LEVEL_ASSIGNED:=NULL]
+  te <- unique(te)
+  x <- tabtomat(data.frame(te))
+  x[is.na(x)] <- 0
+  stopifnot(all(99<apply(x,1,sum)) & all(apply(x,1,sum)<101))
+  x%*%solve(crossprod(x))%*%t(x)
+}
+
+
+
+
+iterate <- function(pa=getbdh(su),z=getz(),idrop=NULL,initial=mean(pa,na.rm=TRUE),niter=5) {
+  m <- coredata(pa)
+  m[idrop] <- NA
+  ina <- which(is.na(m))
+  nna <- length(ina)
+  if(nna==0) return()
+  if(length(ina)>0) {
+    res <- matrix(0*NA,nna,niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
+    res[,"0"] <- initial
+    m[ina] <- initial
+    for(i in 1:niter) {
+      m[ina] <- (m%*%z)[ina]
+      res[,as.character(i)] <- m[ina]
+    }
+  }
+  if(length(idrop)==nna) res[,'start'] <- coredata(pa)[ina]
+  res
+}
+
+
+#summarises correlation of 'start' with final iteration
+iterate0 <- function(n=10,niter=5,FUN=mean,...) {
+  suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
+}
+
+
+iterate1 <- function(seed=1,pa=getbdh(su),z=getzco(),idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
+  m <- coredata(pa)
+  if(0<idropfraction) {
+    mask <- m-m+1
+    idrop <- round(length(mask)*idropfraction)
+    mask[1:idrop] <- NA
+    for(i in 1:nrow(mask)) mask[i,] <- mask[i,sample(1:ncol(m),size=ncol(m))]
+    m <- m*mask
+  }
+  ina <- which(is.na(m))
+  if(length(ina)==0) {
+    return()
+  } else {
+    x <- iterate2(m,z,initial,niter)
+  }
+  if(idrop==length(ina)) x[,'start'] <- coredata(pa)[ina]
+  x
+}
+
+iterate2 <- function(m,z,initial,niter=5) {
+  ina <- which(is.na(m))
+  res <- matrix(0*NA,length(ina),niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
+  res[,"0"] <- initial
+  m[ina] <- initial
+  for(i in 1:niter) {
+    m[ina] <- (m%*%z)[ina]
+    res[,as.character(i)] <- m[ina]
+  }
+  res
+}
