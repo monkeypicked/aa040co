@@ -384,25 +384,25 @@ getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)]) {
 
 
 
-
-iterate <- function(pa=getbdh(su),z=getz(),idrop=NULL,initial=mean(pa,na.rm=TRUE),niter=5) {
-  m <- coredata(pa)
-  m[idrop] <- NA
-  ina <- which(is.na(m))
-  nna <- length(ina)
-  if(nna==0) return()
-  if(length(ina)>0) {
-    res <- matrix(0*NA,nna,niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
-    res[,"0"] <- initial
-    m[ina] <- initial
-    for(i in 1:niter) {
-      m[ina] <- (m%*%z)[ina]
-      res[,as.character(i)] <- m[ina]
-    }
-  }
-  if(length(idrop)==nna) res[,'start'] <- coredata(pa)[ina]
-  res
-}
+#this function has been split into iterate1,2
+# iterate <- function(pa=getbdh(su),z=getz(),idrop=NULL,initial=mean(pa,na.rm=TRUE),niter=5) {
+#   m <- coredata(pa)
+#   m[idrop] <- NA
+#   ina <- which(is.na(m))
+#   nna <- length(ina)
+#   if(nna==0) return()
+#   if(length(ina)>0) {
+#     res <- matrix(0*NA,nna,niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
+#     res[,"0"] <- initial
+#     m[ina] <- initial
+#     for(i in 1:niter) {
+#       m[ina] <- (m%*%z)[ina]
+#       res[,as.character(i)] <- m[ina]
+#     }
+#   }
+#   if(length(idrop)==nna) res[,'start'] <- coredata(pa)[ina]
+#   res
+# }
 
 
 #summarises correlation of 'start' with final iteration
@@ -410,7 +410,47 @@ iterate0 <- function(n=10,niter=5,FUN=mean,...) {
   suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
 }
 
+#iterloocvi - drops each row in turn and estimates new co; fits the row
+iterloocvi <- function(pa=getbdh(su),...) {
+  mhat <- m <- pa
+  for(i in 1:nrow(m)) {
+    mi <- m[-i,]
+    ce <- dtce(data.table(cewrap(pa=mi,...)))
+    mhat[i,] <- msce(ce,m[i,,drop=FALSE])
+  }
+  mfit <- msce(x=dtce(data.table(cewrap(pa=mi,...))),ret=pa)
+  list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
+}
 
+#iterloocv - drops each observation in turn and replaces it with an iterated
+iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
+  mhat <- m <- coredata(pa)
+  for(i in 1:nrow(m)) {
+    mi <- mean(m[i,])
+    for(j in 1:ncol(m)) {
+      mrow <- m[i,,drop=FALSE]
+      mrow[,j] <- mi
+      for(k in 1:niter) {mrow[1,j] <- (mrow%*%z)[1,j]}
+      mhat[i,j] <- mrow[,j]
+    }
+  }
+  mfit <- m %*% z
+  list(loocv=as.numeric(mhat),fit=as.numeric(mfit),act=as.numeric(m))
+}
+
+ilcvsumm <- function(x=iterloocv(...),...) {
+  s1 <- summary(lm(act ~ fit,data=data.frame(x)))
+  s2 <- summary(lm(act ~ loocv,data=data.frame(x)))
+  tab <- matrix(NA,3,2,dimnames=list(c('fit','loocv','diff'),c('Rsq','coef')))
+  tab[1,1] <- s1$r.squared
+  tab[1,2] <- s1$coefficients[2,1]
+  tab[2,1] <- s2$r.squared
+  tab[2,2] <- s2$coefficients[2,1]
+  tab[3,] <- tab[1,]-tab[2,]
+  tab
+}
+
+#wrapper to iterate2, applies 'drop' ie sets NA a specified fraction of data
 iterate1 <- function(seed=1,pa=getbdh(su),z=getzco(),idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
   m <- coredata(pa)
   if(0<idropfraction) {
@@ -430,6 +470,7 @@ iterate1 <- function(seed=1,pa=getbdh(su),z=getzco(),idropfraction=0,initial=mea
   x
 }
 
+#iterate2 - inner function applying z 
 iterate2 <- function(m,z,initial,niter=5) {
   ina <- which(is.na(m))
   res <- matrix(0*NA,length(ina),niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
