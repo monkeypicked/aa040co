@@ -38,7 +38,15 @@ deraaco <- function(su=getrdatv("jo","su"),da=su[,sort(unique(date))],verbose=TR
 #' exists('prem.g') #true
 #' }
 #' @export
-getbdhgl <- function(field=list(list(prem.g="x0700redoto"),list(mcap.g="x0702mcap"),list(vix.g="x0502vix")),myclass='zoo') {
+getbdhgl <- function(field=list(
+                              list(prem.g="x0700redoto"),
+                              list(mcap.g="x0702mcap"),
+                              list(dipr.g="x0702dipr"),
+                              list(erpr.g="x0702erpr"),
+                              list(bopr.g="x0702bopr"),
+                              list(best.g="x0702best"),
+                              list(vix.g="x0502vix")),
+                      myclass='zoo') {
   x <- lapply(field,function(field) {assign(x=names(field),value=getstep(unlist(field),n='001',myclass=myclass),envir=globalenv())})
 }
 
@@ -319,11 +327,6 @@ getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)],looc
   sol
 }
 
-#'summarises correlation of 'start' with final iteration
-#' @export
-iterate0 <- function(n=10,niter=5,FUN=mean,...) {
-  suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
-}
 
 #'iterloocvi - drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
 #' @export
@@ -396,6 +399,12 @@ ilcvsumm <- function(x=iterloocv(...),...) {
   tab
 }
 
+#'summarises correlation of 'start' with final iteration
+#' @export
+iterate0 <- function(n=10,niter=5,FUN=mean,...) {
+  suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
+}
+
 #'wrapper to iterate2, applies 'drop' ie sets NA a specified fraction of data
 #' @export
 iterate1 <- function(seed=1,pa=getbdh(su),z=getzco()$T,idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
@@ -413,7 +422,7 @@ iterate1 <- function(seed=1,pa=getbdh(su),z=getzco()$T,idropfraction=0,initial=m
   } else {
     x <- iterate2(m,z,initial,niter)
   }
-  if(idrop==length(ina)) x[,'start'] <- coredata(pa)[ina]
+  if(0<idropfraction) x[1:idrop,'start'] <- coredata(pa)[ina]
   x
 }
 
