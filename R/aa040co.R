@@ -282,96 +282,26 @@ addbench <- function(
   ce
 }
 
-#presumed junk----------------------------------------
-
-#getpi is overcomplex; slow, probably buggy - replaced with getbdh which just uses zoo - simples
-# #' Get panel for universe defined by su
-# #'
-# #' gets the panel corresponding to a securityuniverse, either applying locf or focb to the
-# #' securityuniverse, then optionally extracting one date and applying focb to that.  The default
-# #' is locf-focb, which means that the latest ex-ante universe identifies the cross-section, whose
-# #' history is then extracted.  This is the correct usage for 'rolling ex-ante estimation' on a
-# #' dynamic univers.
-# #' @param su security universe, a data.table with columns date, bui
-# #' @param mnem filename without extension
-# #' @param mydir directory
-# #' @param myclass 'zoo' or 'dt' is returned
-# #' @param da reference date or datum for universe (this in incremented each time in a rolling estimation)
-# #' @param la maximum lag to access as a positive number, so data returned starts at (da-lag)
-# #' @param roll flag taking values 'locf' or 'focb', the former being correct for ex-ante estimation
-# #' @param fixed logical flag indicating whether the universe is fixed as of da, or dynamic, defaults TRUE
-# #' @param ... passed to dern to construct mydir
-# #' @examples
-# #' \dontrun{
-# #' su <- getrdatv('jo','su')
-# #' pa1 <- getpi(su)
-# #' pa2 <- getpi(su,fix=F)
-# #' pa3 <- getpi(su,da='2011-11-30')
-# #' pa4 <- getpi(su,fix=F,da='2011-11-30')
-# #' mean(is.na(pa2))-mean(is.na(pa1))#has more na because history screened out
-# #' mean(is.na(pa4))-mean(is.na(pa3))#has more na because history screened out
-# #' }
-# #' @export
-# #' @family accessor
-# getpi <- function(su=getrdatv('jo','su'),
-#                   x=prem.g, 
-#                   mydir = dern(...), 
-#                   myclass=c("zoo","dt"),
-#                   da=max(x[,date]),
-#                   la=200,
-#                   roll=TRUE,
-#                   fixed=TRUE,
-#                   ...) {
-#   myclass <- match.arg(myclass)
-#   stopifnot(mode(da)=="character" && da%in%x[,unique(date)])
-#   stopifnot(
-#     is(su,'data.table') && 
-#       all(c('bui','date')%in%colnames(su)) && 
-#       all(su[,date]%in%derca()[,date]) && 
-#       length(setdiff(su[,unique(bui)],x[,unique(bui)]))==0)
-#   datevec <- x[,list(date=unique(date))][date<=da,list(date=sort(date,decreasing=TRUE))][1:la][,rev(date)]
-#   if(su[,mode(date)!='character']) su[,date:=as.character(date)]
-#   #interpolate su onto the basis of x, note the ta==1 which is then deleted
-#   su1 <- unique(setkey(su[,ta:=1],bui,date))[CJ(su[,unique(bui)],x[,unique(date)]),roll=roll][,list(bui,date,ta)][ta==1][,ta:=NULL]
-#   if(fixed) {
-#     su2 <- setnames(CJ(setkey(su1,date)[da,bui],datevec),c('bui','date'))
-#   } else {
-#     su2 <- setkey(su1,date)[datevec]
-#   }
-#   x <- setkey(x,bui,date)[setkey(su2,bui,date)]
-#   if(myclass=="zoo") {
-#     mz(tabtomat(data.frame(x)))
-#   } else { x }
-# }
-
-# getbdmgl <- function(field=list(list(vix.g="VIX")),myclass='zoo') {
-#   x <- lapply(field,function(field) {assign(x=names(field),value=getstep("VIX",n="000",ty='m',myclass=myclass),envir=globalenv())})
-# }
-
-# ceload <- function(...,fieldrd=list(list(prem.g="x0700redoto"),list(mcap.g="x0702mcap")),fieldm="vix.g",isu=greprd()) {
-#   if(any(!unlist(lapply(names(unlist(fieldrd)),exists)))) {getbdhgl(field=fieldrd) }
-#   if(any(!exists(fieldm))) {getbdmgl() }
-#   if(!exists('su.g')) {su.g<<-getrd(isu)}
-#   cewrap(...)
-# }
 
 #--------na interpolation section
 
 #' getzco - covariance-based (PCA) interpolator 
 #' 
 #' @export
-#' 
 getzco <- function(co=getrd(101)) {
   ce <- dtce(co)
-  fmpce(ce)%*%t(ldgce(ce))
+  list(
+    M=fmpce(ce)[,1,drop=FALSE]%*%t(ldgce(ce)[,1,drop=FALSE]),
+    S=fmpce(ce)[,-1,drop=FALSE]%*%t(ldgce(ce)[,-1,drop=FALSE]),
+    T=fmpce(ce)%*%t(ldgce(ce))
+  )    
 }
 
 
 #' getzte - industry-based interpolator
 #' 
 #' @export
-#' 
-getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)]) {
+getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE) {
   buix <- su[date==da,unique(bui)]
   te <- setkey(te[buix,list(bui,bcode,BICS_REVENUE_PERC_LEVEL_ASSIGNED)],bui)
   setkey(te[,BRPLA:=sum(BICS_REVENUE_PERC_LEVEL_ASSIGNED),list(bui,bcode)],bui,bcode)[,BICS_REVENUE_PERC_LEVEL_ASSIGNED:=NULL]
@@ -379,38 +309,24 @@ getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)]) {
   x <- tabtomat(data.frame(te))
   x[is.na(x)] <- 0
   stopifnot(all(99<apply(x,1,sum)) & all(apply(x,1,sum)<101))
-  x%*%solve(crossprod(x))%*%t(x)
+  sol <- list(x0=x%*%solve(crossprod(x))%*%t(x))
+  if(loocv) {
+    for( i in 1:nrow(x) ) {
+      sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%t(x)
+    }
+    names(sol)[2:(1+nrow(x))] <- paste0('x',1:nrow(x))
+  }
+  sol
 }
 
-
-
-#this function has been split into iterate1,2
-# iterate <- function(pa=getbdh(su),z=getz(),idrop=NULL,initial=mean(pa,na.rm=TRUE),niter=5) {
-#   m <- coredata(pa)
-#   m[idrop] <- NA
-#   ina <- which(is.na(m))
-#   nna <- length(ina)
-#   if(nna==0) return()
-#   if(length(ina)>0) {
-#     res <- matrix(0*NA,nna,niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
-#     res[,"0"] <- initial
-#     m[ina] <- initial
-#     for(i in 1:niter) {
-#       m[ina] <- (m%*%z)[ina]
-#       res[,as.character(i)] <- m[ina]
-#     }
-#   }
-#   if(length(idrop)==nna) res[,'start'] <- coredata(pa)[ina]
-#   res
-# }
-
-
-#summarises correlation of 'start' with final iteration
+#'summarises correlation of 'start' with final iteration
+#' @export
 iterate0 <- function(n=10,niter=5,FUN=mean,...) {
   suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
 }
 
-#iterloocvi - drops each row in turn and estimates new co; fits the row
+#'iterloocvi - drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
+#' @export
 iterloocvi <- function(pa=getbdh(su),...) {
   mhat <- m <- pa
   for(i in 1:nrow(m)) {
@@ -422,36 +338,67 @@ iterloocvi <- function(pa=getbdh(su),...) {
   list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
 }
 
-#iterloocv - drops each observation in turn and replaces it with an iterated
-iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
-  mhat <- m <- coredata(pa)
-  for(i in 1:nrow(m)) {
-    mi <- mean(m[i,])
-    for(j in 1:ncol(m)) {
-      mrow <- m[i,,drop=FALSE]
-      mrow[,j] <- mi
-      for(k in 1:niter) {mrow[1,j] <- (mrow%*%z)[1,j]}
-      mhat[i,j] <- mrow[,j]
-    }
+#'loocvj - drops each column in turn of pa, ie each identifier bui - note there is NO iteration, no substitutio of the 'left out', it is just fitted which is more correct
+#' @export
+loocvj <- function(pa=getbdh(su),z=getzte(te=getrd(105),loocv=TRUE),...) {
+  mhat <- m <- pa
+  for(j in 1:ncol(m)) { #drop each column (identifier bui) in turn and postmultiply by the (x'x)-1.X
+    mj <- m[,-j]
+    xxj <- z[[paste0('x',j)]]
+    mhat[,j] <- mj%*%(xxj[,j,drop=FALSE])
   }
-  mfit <- m %*% z
-  list(loocv=as.numeric(mhat),fit=as.numeric(mfit),act=as.numeric(m))
+  mfit <- m%*%z[[1]]
+  list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
 }
 
+#'iterloocv - drops each observation in turn and replaces it with an iterated
+#' @export
+iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
+  mhat <- m <- coredata(pa)
+  mhatlist <- NULL
+  for(k in c('M','S','T')) {
+    zk <- z[[k]]
+    for(i in 1:nrow(m)) {
+      mi <- mean(m[i,])
+      for(j in 1:ncol(m)) {
+        mrow <- m[i,,drop=FALSE]
+        mrow[,j] <- mi
+        for(l in 1:niter) {mrow[1,j] <- (mrow%*%zk)[1,j]}
+        mhat[i,j] <- mrow[,j]
+      }
+    }
+    mhatlist <- c(mhatlist,structure(list(mhat),names=k))
+  }
+  #mhat <- mhatlist[["M"]]+mhatlist[["S"]]
+  mfit <- m %*% z[["T"]]
+  list(loocv=as.numeric(mhatlist[["T"]]),fit=as.numeric(mfit),act=as.numeric(m),
+       loocvM=as.numeric(mhatlist[["M"]]),loocvS=as.numeric(mhatlist[["S"]]))
+}
+
+#' @export
 ilcvsumm <- function(x=iterloocv(...),...) {
   s1 <- summary(lm(act ~ fit,data=data.frame(x)))
   s2 <- summary(lm(act ~ loocv,data=data.frame(x)))
-  tab <- matrix(NA,3,2,dimnames=list(c('fit','loocv','diff'),c('Rsq','coef')))
+  tab <- matrix(NA,5,2,dimnames=list(c('fit','loocv','diff','loocvM','loocvS'),c('Rsq','coef')))
   tab[1,1] <- s1$r.squared
   tab[1,2] <- s1$coefficients[2,1]
   tab[2,1] <- s2$r.squared
   tab[2,2] <- s2$coefficients[2,1]
   tab[3,] <- tab[1,]-tab[2,]
+  if('loocvM'%in%names(x)) {
+    s3 <- summary(lm(act ~ loocvM,data=data.frame(x)))
+    s4 <- summary(lm(act ~ loocvS,data=data.frame(x)))
+    tab[4,1] <- s3$r.squared
+    tab[4,2] <- s3$coefficients[2,1]
+    tab[5,1] <- s4$r.squared
+    tab[5,2] <- s4$coefficients[2,1]
+  }
   tab
 }
 
-#wrapper to iterate2, applies 'drop' ie sets NA a specified fraction of data
-iterate1 <- function(seed=1,pa=getbdh(su),z=getzco(),idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
+#'wrapper to iterate2, applies 'drop' ie sets NA a specified fraction of data
+#' @export
+iterate1 <- function(seed=1,pa=getbdh(su),z=getzco()$T,idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
   m <- coredata(pa)
   if(0<idropfraction) {
     mask <- m-m+1
@@ -470,7 +417,8 @@ iterate1 <- function(seed=1,pa=getbdh(su),z=getzco(),idropfraction=0,initial=mea
   x
 }
 
-#iterate2 - inner function applying z 
+#'iterate2 - inner function applying z 
+#' @export
 iterate2 <- function(m,z,initial,niter=5) {
   ina <- which(is.na(m))
   res <- matrix(0*NA,length(ina),niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
