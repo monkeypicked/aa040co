@@ -296,7 +296,7 @@ addbench <- function(
 #' getzco - covariance-based (PCA) interpolator 
 #' 
 #' @export
-getzco <- function(co=getrd(101)) {
+getzco <- function(co=getrd(100)) {
   ce <- dtce(co)
   list(
     M=fmpce(ce)[,1,drop=FALSE]%*%t(ldgce(ce)[,1,drop=FALSE]),
@@ -374,7 +374,9 @@ iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
   }
   #mhat <- mhatlist[["M"]]+mhatlist[["S"]]
   mfit <- m %*% z[["T"]]
-  list(loocv=as.numeric(mhatlist[["T"]]),fit=as.numeric(mfit),act=as.numeric(m),
+  mfitM <- m %*% z[["M"]]
+  mfitS <- m %*% z[["S"]]
+  list(loocv=as.numeric(mhatlist[["T"]]),fit=as.numeric(mfit),fitM=as.numeric(mfitM),fitS=as.numeric(mfitS),act=as.numeric(m),
        loocvM=as.numeric(mhatlist[["M"]]),loocvS=as.numeric(mhatlist[["S"]]))
 }
 
