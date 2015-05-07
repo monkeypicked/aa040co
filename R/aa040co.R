@@ -317,7 +317,7 @@ getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)],looc
   x <- tabtomat(data.frame(te))
   x[is.na(x)] <- 0
   stopifnot(all(99<apply(x,1,sum)) & all(apply(x,1,sum)<101))
-  sol <- list(x0=x%*%solve(crossprod(x))%*%t(x))
+  sol <- list(T=x%*%solve(crossprod(x))%*%t(x))
   if(loocv) {
     for( i in 1:nrow(x) ) {
       sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%t(x)
@@ -338,8 +338,7 @@ iterloocvi <- function(pa=getbdh(su),...) {
     mhat[i,] <- msce(ce,m[i,,drop=FALSE])
   }
   mfit <- msce(x=dtce(data.table(cewrap(pa=mi,...))),ret=pa)
-  list(act=list(T=m),hat=list(T=mhat),fit=list(T=mfit))
-  #list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
+  list(act=as.numeric(m),mhat=as.numeric(mhat),mfit=as.numeric(mfit))
 }
 
 #'loocvj - drops each column in turn of pa, ie each identifier bui - note there is NO iteration, no substitutio of the 'left out', it is just fitted which is more correct
@@ -352,15 +351,14 @@ loocvj <- function(pa=getbdh(su),z=getzte(te=getrd(105),loocv=TRUE),...) {
     mhat[,j] <- mj%*%(xxj[,j,drop=FALSE])
   }
   mfit <- m%*%z[[1]]
-  list(act=list(T=m),hat=list(T=mhat),fit=list(T=mfit))
-  #list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
+  list(act=as.numeric(m),mhat=as.numeric(mhat),mfit=as.numeric(mfit))
 }
 
 #'iterloocv - drops each observation in turn and replaces it with an iterated
 #' @export
 iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
   mhat <- m <- coredata(pa)
-  comp <- c('M','S','T')
+  comp <- names(z)
   mfitlist <- mhatlist <- NULL
   for(i in 1:nrow(m)) {
     mi <- mean(m[i,])
@@ -402,14 +400,14 @@ ilcvsumm <- function(x=iterloocv(...),...) {
   tab
 }
 
+#' @export
 ilcvsumm <- function(x=iterloocv(...),...) {
-  x <- iterloocv(pa)
   tab <- NULL
   for(i in 2:length(x)) {
     mo <- summary(lm((paste0("act ~ ",names(x)[i])),data=data.frame(x)))
-    tab <- rbind(tab,data.frame(rsq=mo$r.squared,coef=mo$coefficients[2,1]))
+    tab <- data.table(rbind(tab,data.frame(rsq=mo$r.squared,coef=mo$coefficients[2,1])))
   }
-  rownames(tab) <- names(x)[-1]
+  setkey(tab[,component:=names(x)[-1]],component)[]
 }
 
 #'summarises correlation of 'start' with final iteration
