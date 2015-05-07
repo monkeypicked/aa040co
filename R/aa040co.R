@@ -338,46 +338,47 @@ iterloocvi <- function(pa=getbdh(su),...) {
     mhat[i,] <- msce(ce,m[i,,drop=FALSE])
   }
   mfit <- msce(x=dtce(data.table(cewrap(pa=mi,...))),ret=pa)
-  list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
+  list(act=list(T=m),hat=list(T=mhat),fit=list(T=mfit))
+  #list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
 }
 
 #'loocvj - drops each column in turn of pa, ie each identifier bui - note there is NO iteration, no substitutio of the 'left out', it is just fitted which is more correct
 #' @export
 loocvj <- function(pa=getbdh(su),z=getzte(te=getrd(105),loocv=TRUE),...) {
-  mhat <- m <- pa
+  mhat <- m <- coredata(pa)
   for(j in 1:ncol(m)) { #drop each column (identifier bui) in turn and postmultiply by the (x'x)-1.X
     mj <- m[,-j]
     xxj <- z[[paste0('x',j)]]
     mhat[,j] <- mj%*%(xxj[,j,drop=FALSE])
   }
   mfit <- m%*%z[[1]]
-  list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
+  list(act=list(T=m),hat=list(T=mhat),fit=list(T=mfit))
+  #list(loocv=as.numeric(coredata(mhat)),fit=as.numeric(coredata(mfit)),act=as.numeric(coredata(m)))
 }
 
 #'iterloocv - drops each observation in turn and replaces it with an iterated
 #' @export
 iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
   mhat <- m <- coredata(pa)
-  mhatlist <- NULL
-  for(k in c('M','S','T')) {
-    zk <- z[[k]]
-    for(i in 1:nrow(m)) {
-      mi <- mean(m[i,])
-      for(j in 1:ncol(m)) {
-        mrow <- m[i,,drop=FALSE]
-        mrow[,j] <- mi
-        for(l in 1:niter) {mrow[1,j] <- (mrow%*%zk)[1,j]}
-        mhat[i,j] <- mrow[,j]
-      }
+  comp <- c('M','S','T')
+  mfitlist <- mhatlist <- NULL
+  for(i in 1:nrow(m)) {
+    mi <- mean(m[i,])
+    for(j in 1:ncol(m)) {
+      mrow <- m[i,,drop=FALSE]
+      mrow[,j] <- mi
+      for(l in 1:niter) {mrow[1,j] <- (mrow%*%z[['T']])[1,j]}
+      mhat[i,j] <- mrow[,j]
     }
-    mhatlist <- c(mhatlist,structure(list(mhat),names=k))
   }
-  #mhat <- mhatlist[["M"]]+mhatlist[["S"]]
-  mfit <- m %*% z[["T"]]
-  mfitM <- m %*% z[["M"]]
-  mfitS <- m %*% z[["S"]]
-  list(loocv=as.numeric(mhatlist[["T"]]),fit=as.numeric(mfit),fitM=as.numeric(mfitM),fitS=as.numeric(mfitS),act=as.numeric(m),
-       loocvM=as.numeric(mhatlist[["M"]]),loocvS=as.numeric(mhatlist[["S"]]))
+  for(k in comp) {
+    mhatlist[[k]] <- mhat%*%z[[k]]
+    mfitlist[[k]] <- m%*%z[[k]]
+  }
+  names(mhatlist) <- paste0('mhat',comp)
+  names(mfitlist) <- paste0('mfit',comp)
+  list(act=list(T=m),hat=mhatlist,fit=mfitlist)
+  c(list(act=as.numeric(m)),lapply(mhatlist,as.numeric),lapply(mfitlist,as.numeric))
 }
 
 #' @export
@@ -399,6 +400,16 @@ ilcvsumm <- function(x=iterloocv(...),...) {
     tab[5,2] <- s4$coefficients[2,1]
   }
   tab
+}
+
+ilcvsumm <- function(x=iterloocv(...),...) {
+  x <- iterloocv(pa)
+  tab <- NULL
+  for(i in 2:length(x)) {
+    mo <- summary(lm((paste0("act ~ ",names(x)[i])),data=data.frame(x)))
+    tab <- rbind(tab,data.frame(rsq=mo$r.squared,coef=mo$coefficients[2,1]))
+  }
+  rownames(tab) <- names(x)[-1]
 }
 
 #'summarises correlation of 'start' with final iteration
