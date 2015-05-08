@@ -233,6 +233,8 @@ dfrce <- function(x,dat=max(index(x)))
   res
 }
 
+
+#' @export
 interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su"))) {
   ce <- dtce(co)
   stopifnot(all(sort(colnames(pa))==sort(buice(ce))))
@@ -328,22 +330,72 @@ getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)],looc
 }
 
 
-#'iterloocvi - drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
+#' integer industries pruned to nmin/node
+#' 
 #' @export
-iterloocvi <- function(pa=getbdh(su),...) {
-  mhat <- m <- pa
+pruneztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],nmin=3) {
+  buix <- su[date==da,unique(bui)]
+  te <- getbdp()[buix][,list(bui,bcode=BICS_LEVEL_CODE_ASSIGNED,BRPLA=1)]
+  tesums <- setcolorder(setkey(te[,list(agg=sum(BRPLA)),bcode],bcode)[,startcode:=bcode][,bagg:=agg],c('startcode','agg','bcode','bagg'))
+  clen <- tesums[,max(nchar(bcode))]
+  while(0<clen) {
+    tesums[,acode:=bcode][((bagg<nmin)&(nchar(bcode)==clen)),acode:=substr(bcode,1,nchar(bcode)-2)]
+    tesums[,bcode:=acode][,acode:=NULL][,bagg:=NULL][,bagg:=sum(agg),bcode]
+    clen <- clen-2
+  }
+  te <- setkey(te,bcode)[setkey(tesums,startcode)][,bcode:=i.bcode][,i.bcode:=NULL][,agg:=NULL][,bagg:=NULL][bcode=="",bcode:="00"]
+  te
+}
+
+#' z for integer industries pruned to nmin/node
+#' 
+#' @export
+getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=3) {
+  te <- pruneztei(su=su,da=da,nmin=nmin)
+  x <- tabtomat(data.frame(te))
+  x[is.na(x)] <- 0
+  sol <- list(T=x%*%solve(crossprod(x))%*%t(x))
+  if(loocv) {
+    for( i in 1:nrow(x) ) {
+      sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%t(x)
+    }
+    names(sol)[2:(1+nrow(x))] <- paste0('x',1:nrow(x))
+  }
+  sol
+}
+
+mscecomp <- function(x,ret) {
+  sco <- scoce(x, ret)
+  ldg <- ldgce(x)
+  stopifnot(all.equal(colnames(ret),rownames(ldg)))
+  list(M=mz(sco[,1,drop=FALSE] %*% t(ldg[,1,drop=FALSE])),S=mz(sco[,-1,drop=FALSE] %*% t(ldg[,-1,drop=FALSE])),T=mz(sco %*% t(ldg)))
+}
+
+#'loocvi - drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
+#' @export
+loocvi <- function(pa=getbdh(su),...) {
+  mhatT <- mhatS <- mhatM <- m <- pa
+  comp <- 
   for(i in 1:nrow(m)) {
     mi <- m[-i,]
     ce <- dtce(data.table(cewrap(pa=mi,...)))
-    mhat[i,] <- msce(ce,m[i,,drop=FALSE])
+    mscec <- mscecomp(ce,m[i,,drop=FALSE])
+    mhatM[i,] <- mscec$M
+    mhatS[i,] <- mscec$S
+    mhatT[i,] <- mscec$T
   }
-  mfit <- msce(x=dtce(data.table(cewrap(pa=mi,...))),ret=pa)
-  list(act=as.numeric(m),mhat=as.numeric(mhat),mfit=as.numeric(mfit))
+  mhatlist <- lapply(list(M=mhatM,S=mhatS,T=mhatT),as.numeric)
+  mfitlist <- lapply(mscecomp(dtce(data.table(cewrap(pa=m,...))),m),as.numeric)
+  names(mhatlist) <- paste0('mhat',names(mscec))
+  names(mfitlist) <- paste0('mfit',names(mscec))
+  c(list(act=as.numeric(m)),mhatlist,mfitlist)
 }
 
 #'loocvj - drops each column in turn of pa, ie each identifier bui - note there is NO iteration, no substitutio of the 'left out', it is just fitted which is more correct
 #' @export
 loocvj <- function(pa=getbdh(su),z=getzte(te=getrd(105),loocv=TRUE),...) {
+  stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
+  stopifnot(all.equal(colnames(pa),colnames(z[[1]])))
   mhat <- m <- coredata(pa)
   for(j in 1:ncol(m)) { #drop each column (identifier bui) in turn and postmultiply by the (x'x)-1.X
     mj <- m[,-j]
@@ -357,6 +409,8 @@ loocvj <- function(pa=getbdh(su),z=getzte(te=getrd(105),loocv=TRUE),...) {
 #'iterloocv - drops each observation in turn and replaces it with an iterated
 #' @export
 iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
+  stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
+  stopifnot(all.equal(colnames(pa),colnames(z[[1]])))
   mhat <- m <- coredata(pa)
   comp <- names(z)
   mfitlist <- mhatlist <- NULL
@@ -375,30 +429,29 @@ iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
   }
   names(mhatlist) <- paste0('mhat',comp)
   names(mfitlist) <- paste0('mfit',comp)
-  list(act=list(T=m),hat=mhatlist,fit=mfitlist)
   c(list(act=as.numeric(m)),lapply(mhatlist,as.numeric),lapply(mfitlist,as.numeric))
 }
 
-#' @export
-ilcvsumm <- function(x=iterloocv(...),...) {
-  s1 <- summary(lm(act ~ fit,data=data.frame(x)))
-  s2 <- summary(lm(act ~ loocv,data=data.frame(x)))
-  tab <- matrix(NA,5,2,dimnames=list(c('fit','loocv','diff','loocvM','loocvS'),c('Rsq','coef')))
-  tab[1,1] <- s1$r.squared
-  tab[1,2] <- s1$coefficients[2,1]
-  tab[2,1] <- s2$r.squared
-  tab[2,2] <- s2$coefficients[2,1]
-  tab[3,] <- tab[1,]-tab[2,]
-  if('loocvM'%in%names(x)) {
-    s3 <- summary(lm(act ~ loocvM,data=data.frame(x)))
-    s4 <- summary(lm(act ~ loocvS,data=data.frame(x)))
-    tab[4,1] <- s3$r.squared
-    tab[4,2] <- s3$coefficients[2,1]
-    tab[5,1] <- s4$r.squared
-    tab[5,2] <- s4$coefficients[2,1]
-  }
-  tab
-}
+# #' @export
+# ilcvsumm <- function(x=iterloocv(...),...) {
+#   s1 <- summary(lm(act ~ fit,data=data.frame(x)))
+#   s2 <- summary(lm(act ~ loocv,data=data.frame(x)))
+#   tab <- matrix(NA,5,2,dimnames=list(c('fit','loocv','diff','loocvM','loocvS'),c('Rsq','coef')))
+#   tab[1,1] <- s1$r.squared
+#   tab[1,2] <- s1$coefficients[2,1]
+#   tab[2,1] <- s2$r.squared
+#   tab[2,2] <- s2$coefficients[2,1]
+#   tab[3,] <- tab[1,]-tab[2,]
+#   if('loocvM'%in%names(x)) {
+#     s3 <- summary(lm(act ~ loocvM,data=data.frame(x)))
+#     s4 <- summary(lm(act ~ loocvS,data=data.frame(x)))
+#     tab[4,1] <- s3$r.squared
+#     tab[4,2] <- s3$coefficients[2,1]
+#     tab[5,1] <- s4$r.squared
+#     tab[5,2] <- s4$coefficients[2,1]
+#   }
+#   tab
+# }
 
 #' @export
 ilcvsumm <- function(x=iterloocv(...),...) {
@@ -449,4 +502,27 @@ iterate2 <- function(m,z,initial,niter=5) {
     res[,as.character(i)] <- m[ina]
   }
   res
+}
+
+#'runco self-documenting run of 4 flavours of testing
+#' @export
+runco <- function() {
+  require(aapa)
+  require(aate)
+  aatopselect('test')
+  getbdhgl()
+  su <- getrd(99)
+  co <- getrd(100)
+  pa <- getbdh(su)
+  x <- vector("list")
+  
+  x[[1]] <- structure(ilcvsumm(iterloocv(pa,z=getzco())),desc="PCA iterated")
+  x[[2]] <- structure(ilcvsumm(iterloocv(pa,z=getzte())),desc="BICSF iterated")
+  x[[3]] <- structure(ilcvsumm(iterloocv(pa,z=getztei(nmin=5))),desc="BICSI iterated")
+  x[[4]] <- structure(ilcvsumm(loocvi(pa)),desc="PCA non-iterated")
+  x[[5]] <- structure(ilcvsumm(loocvj(pa)),desc="BICSF non-iterated")
+  x[[6]] <- structure(ilcvsumm(loocvj(pa,z=getztei(loocv=T,nmin=5))),desc="BICSI non-iterated")
+  
+  putrd(body(runco),'6')
+  lapply(x,putrd,usedesc=TRUE)
 }
