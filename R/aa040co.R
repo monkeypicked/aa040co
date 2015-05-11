@@ -364,14 +364,6 @@ getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=
   sol
 }
 
-#' @export
-mscecomp <- function(x,ret) {
-  sco <- scoce(x, ret)
-  ldg <- ldgce(x)
-  stopifnot(all.equal(colnames(ret),rownames(ldg)))
-  list(M=mz(sco[,1,drop=FALSE] %*% t(ldg[,1,drop=FALSE])),S=mz(sco[,-1,drop=FALSE] %*% t(ldg[,-1,drop=FALSE])),T=mz(sco %*% t(ldg)))
-}
-
 #'loocvi - drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
 #' @export
 loocvi <- function(pa=getbdh(su),...) {
