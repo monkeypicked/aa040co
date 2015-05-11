@@ -308,26 +308,27 @@ getzco <- function(co=getrd(100)) {
 }
 
 
-#' getzte - industry-based interpolator
-#' 
-#' @export
-getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE) {
-  buix <- su[date==da,unique(bui)]
-  te <- setkey(te[buix,list(bui,bcode,BICS_REVENUE_PERC_LEVEL_ASSIGNED)],bui)
-  setkey(te[,BRPLA:=sum(BICS_REVENUE_PERC_LEVEL_ASSIGNED),list(bui,bcode)],bui,bcode)[,BICS_REVENUE_PERC_LEVEL_ASSIGNED:=NULL]
-  te <- unique(te)
-  x <- tabtomat(data.frame(te))
-  x[is.na(x)] <- 0
-  stopifnot(all(99<apply(x,1,sum)) & all(apply(x,1,sum)<101))
-  sol <- list(T=x%*%solve(crossprod(x))%*%t(x))
-  if(loocv) {
-    for( i in 1:nrow(x) ) {
-      sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%t(x)
-    }
-    names(sol)[2:(1+nrow(x))] <- paste0('x',1:nrow(x))
-  }
-  sol
-}
+# getzte - industry-based interpolator
+# 
+# the te object is read from rd, and has normally been read back from directories
+# this works but is cumbersome/not needed so has been replaced by getzte that uses autoprune, see below
+# getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE) {
+#   buix <- su[date==da,unique(bui)]
+#   te <- setkey(te[buix,list(bui,bcode,BICS_REVENUE_PERC_LEVEL_ASSIGNED)],bui)
+#   setkey(te[,BRPLA:=sum(BICS_REVENUE_PERC_LEVEL_ASSIGNED),list(bui,bcode)],bui,bcode)[,BICS_REVENUE_PERC_LEVEL_ASSIGNED:=NULL]
+#   te <- unique(te)
+#   x <- tabtomat(data.frame(te))
+#   x[is.na(x)] <- 0
+#   stopifnot(all(99<apply(x,1,sum)) & all(apply(x,1,sum)<101))
+#   sol <- list(T=x%*%solve(crossprod(x))%*%t(x))
+#   if(loocv) {
+#     for( i in 1:nrow(x) ) {
+#       sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%t(x)
+#     }
+#     names(sol)[2:(1+nrow(x))] <- paste0('x',1:nrow(x))
+#   }
+#   sol
+# }
 
 
 #' integer industries pruned to nmin/node
@@ -347,11 +348,35 @@ pruneztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],nmin=3) {
   te
 }
 
+#' fractional industries pruned to nmin/node
+#' 
+#' prunes the tree, leaving nodes satisfying criteria for aggregate weight and number of segments
+#' @export
+pruneztef <- function(su=getrdatv("jo","su",2),da=su[,max(date)],wmin=2,nmin=4) {
+  buix <- su[date==da,unique(bui)]
+  te <-  getbdp(mnem=data.table(data.frame(field = c("BICS_REVENUE_PERC_LEVEL_ASSIGNED"))))[buix][,list(bui,bcode=BICS_LEVEL_CODE_ASSIGNED,BRPLA=BICS_REVENUE_PERC_LEVEL_ASSIGNED/100)][!is.na(BRPLA)]
+  tesums <- setcolorder(setkey(te[,list(agg=sum(BRPLA),count=.N),bcode],bcode)[,startcode:=bcode][,bagg:=agg][,bcount:=count],c('startcode','agg','count','bcode','bagg','bcount'))
+  clen <- tesums[,max(nchar(bcode))]
+  while(0<clen) {
+    tesums[,acode:=bcode][(  ((bagg<wmin)|(bcount<nmin))  &(nchar(bcode)==clen)),acode:=substr(bcode,1,nchar(bcode)-2)]
+    tesums[,bcode:=acode][,acode:=NULL][,bagg:=NULL][,bagg:=sum(agg),bcode][,bcount:=sum(count),bcode]
+    clen <- clen-2
+  }
+  te <- setkey(te,bcode)[setkey(tesums,startcode)][,bcode:=i.bcode][,i.bcode:=NULL][,agg:=NULL][,bagg:=NULL][,count:=NULL][,bcount:=NULL][bcode=="",bcode:="00"]
+  setkey(te[,list(BRPLA=sum(BRPLA)),list(bui,bcode)],bui,bcode)
+}
+
+
 #' z for integer industries pruned to nmin/node
 #' 
 #' @export
-getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=3) {
-  te <- pruneztei(su=su,da=da,nmin=nmin)
+getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=3,wmin=3,type=c('i','f')) {
+  type <- match.arg(type)
+  if(type=='i') {
+    te <- pruneztei(su=su,da=da,nmin=nmin)
+  } else {
+    te <- pruneztef(su=su,da=da,nmin=nmin,wmin=wmin)    
+  }
   x <- tabtomat(data.frame(te))
   x[is.na(x)] <- 0
   sol <- list(T=x%*%solve(crossprod(x))%*%t(x))

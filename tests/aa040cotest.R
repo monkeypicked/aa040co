@@ -51,3 +51,25 @@ co <- getrdatv("jo","co")
 co <- co[date==co[,max(date)],]
 co1 <- data.table(dfrce(dtce(co))) #round trip
 expect_equal(vcvce(dtce(co))$T,vcvce(dtce(co))$T)
+
+#pruneztei
+expect_true(pruneztei(nmin=3)[,.N,bcode][,all(N>=3)])
+expect_true(pruneztef(nmin=3,wmin=3)[,list(.N,wgt=sum(BRPLA)),bcode][bcode!='00',all(N>=3)&all(wgt>=3)])
+expect_true(pruneztef(nmin=3,wmin=3)[,length(unique(bcode))]<pruneztef(nmin=3,wmin=2)[,length(unique(bcode))])
+expect_true(pruneztef(nmin=3,wmin=1)[,length(unique(bcode))]<pruneztef(nmin=2,wmin=1)[,length(unique(bcode))])
+wmat <- tabtomat(data.frame(pruneztef(nmin=5,wmin=5)))
+wmat[is.na(wmat)]<-0
+wmat <- wmat[,order(colSums(wmat))]
+wmat <- wmat[order(apply(sweep(wmat,MAR=2,STAT=1:ncol(wmat),FUN="*"),1,sum)),]
+expect_equal(nrow(wmat),su[,length(unique(bui))])
+myrowsums <- apply(wmat,1,sum,na.rm=TRUE)
+expect_true(all(myrowsums<1.01)&all(myrowsums>0.99))
+image(wmat)
+barplot(sort(apply(wmat,2,sum,na.rm=T)),horiz=T)
+barplot(sort(apply(wmat,1,sum,na.rm=T)),horiz=T)
+barplot((wmat),col=1:100,bord=F,horiz=T,space=0,bes=F)
+barplot(t(wmat)[,],col=1:100,bord=F,horiz=T,space=0,bes=F)
+image((wmat[,order(apply(wmat,2,sum,na.rm=T))]))
+wmat <- wmat
+#pruneztef
+
