@@ -235,13 +235,13 @@ dfrce <- function(x,dat=max(index(x)))
 
 
 #' @export
-interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su"))) {
+interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su")),comp=c('T','M','S')) {
   ce <- dtce(co)
   stopifnot(all(sort(colnames(pa))==sort(buice(ce))))
   i <- is.na(coredata(pa))
   paz <- pa
   coredata(paz)[i] <- 0 #this does not affect the result if pa has same na as estimation window
-  coredata(pa)[i] <- coredata(msce(x=ce,ret=paz))[i]
+  coredata(pa)[i] <- coredata(mscecomp(x=ce,ret=paz)[[comp]])[i]
   pa
 }
 
@@ -364,6 +364,7 @@ getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=
   sol
 }
 
+#' @export
 mscecomp <- function(x,ret) {
   sco <- scoce(x, ret)
   ldg <- ldgce(x)
@@ -408,7 +409,9 @@ loocvj <- function(pa=getbdh(su),z=getzte(te=getrd(105),loocv=TRUE),...) {
 
 #'iterloocv - drops each observation in turn and replaces it with an iterated
 #' @export
-iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
+iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2,myfun=c("as.numeric","mattotab","as.matrix")) {
+  myfun <- get(match.arg(myfun))
+  
   stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
   stopifnot(all.equal(colnames(pa),colnames(z[[1]])))
   mhat <- m <- coredata(pa)
@@ -429,7 +432,7 @@ iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2) {
   }
   names(mhatlist) <- paste0('mhat',comp)
   names(mfitlist) <- paste0('mfit',comp)
-  c(list(act=as.numeric(m)),lapply(mhatlist,as.numeric),lapply(mfitlist,as.numeric))
+  c(list(act=lapply(list(m),myfun)[[1]]),lapply(mhatlist,myfun),lapply(mfitlist,myfun))
 }
 
 # #' @export
@@ -506,7 +509,7 @@ iterate2 <- function(m,z,initial,niter=5) {
 
 #'runco self-documenting run of 4 flavours of testing
 #' @export
-runco <- function() {
+runco <- function(nmin=seq(from=4,to=16,by=2)) {
   require(aapa)
   require(aate)
   aatopselect('test')
@@ -516,13 +519,61 @@ runco <- function() {
   pa <- getbdh(su)
   x <- vector("list")
   
-  x[[1]] <- structure(ilcvsumm(iterloocv(pa,z=getzco())),desc="PCA iterated")
-  x[[2]] <- structure(ilcvsumm(iterloocv(pa,z=getzte())),desc="BICSF iterated")
-  x[[3]] <- structure(ilcvsumm(iterloocv(pa,z=getztei(nmin=5))),desc="BICSI iterated")
-  x[[4]] <- structure(ilcvsumm(loocvi(pa)),desc="PCA non-iterated")
-  x[[5]] <- structure(ilcvsumm(loocvj(pa)),desc="BICSF non-iterated")
-  x[[6]] <- structure(ilcvsumm(loocvj(pa,z=getztei(loocv=T,nmin=5))),desc="BICSI non-iterated")
+  x[[length(x)+1]] <- structure(ilcvsumm(iterloocv(pa,z=getzco()))[,nmin:=nmin[1]],desc="PCA iterated")
+  x[[length(x)+1]] <- structure(ilcvsumm(iterloocv(pa,z=getzte()))[,nmin:=nmin[1]],desc="BICSF iterated")
+  x[[length(x)+1]] <- structure(ilcvsumm(loocvi(pa))[,nmin:=nmin[1]],desc="PCA non-iterated")
+  x[[length(x)+1]] <- structure(ilcvsumm(loocvj(pa))[,nmin:=nmin[1]],desc="BICSF non-iterated")
+  for(i in seq_along(nmin)) {
+    x[[length(x)+1]] <- structure(ilcvsumm(iterloocv(pa,z=getztei(nmin=nmin[i])))[,nmin:=nmin[i]],desc="BICSI iterated")
+    x[[length(x)+1]] <- structure(ilcvsumm(loocvj(pa,z=getztei(loocv=T,nmin=nmin[i])))[,nmin:=nmin[i]],desc="BICSI non-iterated")
+  }
+  x1 <- rbindlist(x)
+  putrdatv(body(runco),app='ilcv',type=length(x))
+  putrdatv(x1,app='ilcv',type='nmin')
+  #lapply(x,putrd,usedesc=TRUE)
+}
+
+
+#fitplot - in a full panel that contains NA, drop size points from the non-NA, and crossplot fitted and actual
+#' @export
+fitplot <- function(size=min(1000,0.1*length(iok)),vbl=list(
+  book.price=zoonorm(log(1+getbdh(su=su,fi='bopr.g')^-1)),
+  upside=zoonorm(log(getbdh(su=su,fi='best.g')))),
+  comp="T",
+  ...) {
+  set.seed(123)
+  par(mfrow=c(1,1))
+  for(i in seq_along(vbl)) {
+    print(i)
+    pa <- vbl[[i]]
+    iok <- which(!is.na(coredata(pa)))
+    izap <- sample(iok,siz=size,rep=F)
+    act <- coredata(pa)[izap]
+    coredata(pa)[izap]<-NA
+    xint <- interpce(pa=pa,comp=comp)
+    int <- coredata(xint)[izap]
+    stopifnot(all(abs(act - int)>1e-10))
+    lmx <- summary(lm(act~int))
+    sub <- paste0('R-squared ',round(lmx$r.squared,2),' coeff: ',round(lmx$coefficients[2,1],2),' tstat: ',round(lmx$coefficients[2,3],1))
+    plot(int,act,pch=20,col='grey',ylab='actual',xlab='fitted',main=paste0(names(vbl)[i]," (",comp,")"),sub=sub,...)
+    grid()
+    abline(0,1)
+  }
+}
+
+
+colm <- function(pa,z,tau=-2:2) {
+  nona <- !is.na(coredata(pa))
+  x <- iterloocv(pa=pa,z=z,myfun='as.m')
+  x1 <- x2 <- pa
+  for(i in seq_along(tau)) {
+    x1 <- x1+lag(x2,k=tau[i],na.pad=TRUE)
+  }
+  x3 <- data.table(mattotab(x1))[!is.na(field)]
   
-  putrd(body(runco),'6')
-  lapply(x,putrd,usedesc=TRUE)
+#get valid M,S,R,bui,t and same for t+tau
+#regress 
+#T on lagged MS, delta MS, lagged R
+#MS on lagged MS and delta MS
+#R on lagged R
 }
