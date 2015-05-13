@@ -236,6 +236,7 @@ dfrce <- function(x,dat=max(index(x)))
 
 #' @export
 interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su")),comp=c('T','M','S')) {
+  comp <- match.arg(comp)
   ce <- dtce(co)
   stopifnot(all(sort(colnames(pa))==sort(buice(ce))))
   i <- is.na(coredata(pa))
@@ -526,7 +527,7 @@ iterate2 <- function(m,z,initial,niter=5) {
 
 #'runco self-documenting run of 4 flavours of testing
 #' @export
-runco <- function(nmin=seq(from=4,to=16,by=2)) {
+runco <- function(nmin=2:14,wmin=2:10) {
   require(aapa)
   require(aate)
   aatopselect('test')
@@ -536,48 +537,123 @@ runco <- function(nmin=seq(from=4,to=16,by=2)) {
   pa <- getbdh(su)
   x <- vector("list")
   
-  x[[length(x)+1]] <- structure(ilcvsumm(iterloocv(pa,z=getzco()))[,nmin:=nmin[1]],desc="PCA iterated")
-  x[[length(x)+1]] <- structure(ilcvsumm(iterloocv(pa,z=getzte()))[,nmin:=nmin[1]],desc="BICSF iterated")
-  x[[length(x)+1]] <- structure(ilcvsumm(loocvi(pa))[,nmin:=nmin[1]],desc="PCA non-iterated")
-  x[[length(x)+1]] <- structure(ilcvsumm(loocvj(pa))[,nmin:=nmin[1]],desc="BICSF non-iterated")
+  x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,z=getzco()))[,nmin:=NA][,wmin:=NA][,iterated:="iterated"][,model:="PCA"]
+  x[[length(x)+1]] <- ilcvsumm(loocvi(pa,z=getzco()))[,nmin:=NA][,wmin:=NA][,iterated:="non-iterated"][,model:="PCA"]
+  
+  #fractional - nmin
   for(i in seq_along(nmin)) {
-    x[[length(x)+1]] <- structure(ilcvsumm(iterloocv(pa,z=getztei(nmin=nmin[i])))[,nmin:=nmin[i]],desc="BICSI iterated")
-    x[[length(x)+1]] <- structure(ilcvsumm(loocvj(pa,z=getztei(loocv=T,nmin=nmin[i])))[,nmin:=nmin[i]],desc="BICSI non-iterated")
+    print(i)
+    zit <- getztei(type='f',nmin=nmin[i],wmin=min(wmin))
+    znit <- getztei(type='f',nmin=nmin[i],loocv=T,wmin=min(wmin))
+    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,z=zit))[,nmin:=nmin[i]][,wmin:=min(wmin)][,iterated:="iterated"][,model:="fractional"]
+    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,z=znit))[,nmin:=nmin[i]][,wmin:=min(wmin)][,iterated:="non-iterated"][,model:="fractional"]
   }
-  x1 <- rbindlist(x)
+  #fractional - wmin
+  for(i in seq_along(wmin)) {
+    print(i)
+    zit <- getztei(type='f',nmin=min(nmin),wmin=wmin[i])
+    znit <- getztei(type='f',nmin=min(nmin),loocv=T,wmin=wmin[i])
+    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,z=zit))[,nmin:=min(nmin)][,wmin:=wmin[i]][,iterated:="iterated"][,model:="fractional"]
+    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,z=znit))[,nmin:=min(nmin)][,wmin:=wmin[i]][,iterated:="non-iterated"][,model:="fractional"]
+  }
+  #integer
+  for(i in seq_along(nmin)) {
+    print(i)
+    zit <- getztei(type='i',nmin=nmin[i])
+    znit <- getztei(type='i',nmin=nmin[i],loocv=T)
+    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,z=zit))[,nmin:=nmin[i]][,wmin:=NA][,iterated:="iterated"][,model:="integer"]
+    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,z=znit))[,nmin:=nmin[i]][,wmin:=NA][,iterated:="non-iterated"][,model:="integer"]
+  }
+
   putrdatv(body(runco),app='ilcv',type=length(x))
-  putrdatv(x1,app='ilcv',type='nmin')
-  #lapply(x,putrd,usedesc=TRUE)
+  putrdatv(x,app='ilcv',type='nmin')
 }
 
+
+#' @export
+getco <- function(x=list(model='fractional',iterated='non-iterated',nmin=8,component='mhat')) {
+  co <- setkeyv(rbindlist(getrdatv(app='ilcv',type='nmin')),names(x))
+  co[x]
+}
 
 #fitplot - in a full panel that contains NA, drop size points from the non-NA, and crossplot fitted and actual
 #' @export
 fitplot <- function(size=min(1000,0.1*length(iok)),vbl=list(
   book.price=zoonorm(log(1+getbdh(su=su,fi='bopr.g')^-1)),
   upside=zoonorm(log(getbdh(su=su,fi='best.g')))),
-  comp="T",
+  comp=c("M","S","T"),
+  su=getrdatv("jo","su",v=2),
   ...) {
-  set.seed(123)
-  par(mfrow=c(1,1))
+  #par(mfrow=c(1,1))
   for(i in seq_along(vbl)) {
-    print(i)
-    pa <- vbl[[i]]
-    iok <- which(!is.na(coredata(pa)))
-    izap <- sample(iok,siz=size,rep=F)
-    act <- coredata(pa)[izap]
-    coredata(pa)[izap]<-NA
-    xint <- interpce(pa=pa,comp=comp)
-    int <- coredata(xint)[izap]
-    stopifnot(all(abs(act - int)>1e-10))
-    lmx <- summary(lm(act~int))
-    sub <- paste0('R-squared ',round(lmx$r.squared,2),' coeff: ',round(lmx$coefficients[2,1],2),' tstat: ',round(lmx$coefficients[2,3],1))
-    plot(int,act,pch=20,col='grey',ylab='actual',xlab='fitted',main=paste0(names(vbl)[i]," (",comp,")"),sub=sub,...)
-    grid()
-    abline(0,1)
+    for(j in seq_along(comp)) {
+      set.seed(123)
+      print(i)
+      pa <- vbl[[i]]
+      iok <- which(!is.na(coredata(pa)))
+      izap <- sample(iok,siz=size,rep=F)
+      act <- coredata(pa)[izap]
+      coredata(pa)[izap]<-NA
+      xint <- interpce(pa=pa,comp=comp[j])
+      int <- coredata(xint)[izap]
+      stopifnot(all(abs(act - int)>1e-10))
+      lmx <- summary(lm(act~int))
+      sub <- paste0('R-squared ',round(lmx$r.squared,2),' coeff: ',round(lmx$coefficients[2,1],2),' tstat: ',round(lmx$coefficients[2,3],1))
+      plot(int,act,pch=20,col='grey',ylab='actual',xlab='fitted',main=paste0(names(vbl)[i]," (",comp[j],")"),sub=sub,...)
+      grid()
+      if(comp[j]=="T") {abline(0,1)}
+    }
   }
 }
 
+#'plot stocks to illustrate yield fit via PCA
+#'
+#' @export
+examplebui <- function(co=getrd(100),iselect=4) { 
+  x0 <- getrd(100)[order(uniqueness),list(bui,uniqueness,rank(uniqueness))]
+  y1 <- getrd(100)[order(uniqueness),list(bui,uniqueness,rank(uniqueness))]
+  x1 <- y1[,bui]
+  y2 <- getbdp(mnem=data.table(data.frame(field = c("BICS_REVENUE_PERC_LEVEL_ASSIGNED"))))[x0[,bui]][,.N,bui][order(-N)]
+  x2 <- y2[,bui]
+  #up : large magnitude, small residual
+  pa1 <- pa0 <- zoonorm(log(getbdh(su=su,fi='best.g')))
+  for(j in 1:ncol(pa)) {
+    pax <- pa0
+    pax[,j] <- NA
+    pa1[,j] <- interpce(pa=pax)[,j]
+  }
+  y3 <- sort(apply(abs(pa0-pa1),2,mean,na.rm=T))
+  x3 <- names(y3) #this excludes many
+  y4 <- sort(apply(-pa0,2,mean,na.rm=T))
+  x4 <- names(y4)
+  #f1 loading large
+  y5 <- getrd(100)[order(-loadings1),list(bui,loadings1,rank(loadings1))]
+  x5 <- y5[,bui]
+  dfx <- data.frame(x2,x3,x4,x5)
+  #bui <- Reduce(intersect,dfx[1:40,1:3])
+  dfy1 <- setkey(y1[,list(bui,uniqueness)],bui)
+  dfy2 <- setkey(y2,bui)
+  dfy3 <- setkey(data.table(bui=names(y3),upresid=y3),bui)
+  dfy4 <- setkey(data.table(bui=names(y4),up=-y4),bui)
+  dfy5 <- setkey(y5[,list(bui,loadings1)],bui)
+  bui <- Reduce(intersect,dfx[1:62,1:3])
+  bdp <- getbdp()
+  rep <- setkey(dfy1[dfy2[dfy3[dfy4[dfy5]]]][bui],bui)
+  toptab <- bdp[,list(bui,NAME)][rep]
+  par(mfrow=c(2,2))
+  for(i in 1:4) {
+    bui0 <- toptab[i,bui]
+    plot(cbind(pa0[,bui0],pa1[,bui0]),scr=1,col=1:2,main=bdp[bui0,NAME],ylim=c(-.1,.3),ylab='upside',xlab="")
+    grid()
+  }
+  par(mfrow=c(1,1))
+  bui0 <- toptab[iselect,bui]
+  setnames(setkeyv(getbdp()[,list(bui,NAME)][setkey(data.table(fmpce(dtce(co))%*%t(ldgce(dtce(co))[bui0,,drop=F]),bui=buice(dtce(co))),bui)],bui0)[],old=bui0,new=getbdp()[bui0,NAME])[]
+}
+
+indusolution <- function(bui) {
+  
+}
 
 colm <- function(pa,z,tau=-2:2) {
   nona <- !is.na(coredata(pa))
