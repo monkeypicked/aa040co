@@ -681,9 +681,6 @@ examplebui <- function(co=getrd(100),iselect=4) {
   setnames(setkeyv(getbdp()[,list(bui,NAME)][setkey(data.table(fmpce(dtce(co))%*%t(ldgce(dtce(co))[bui0,,drop=F]),bui=buice(dtce(co))),bui)],bui0)[],old=bui0,new=getbdp()[bui0,NAME])[]
 }
 
-indusolution <- function(bui) {
-  
-}
 
 colm <- function(pa,z,tau=-2:2) {
   nona <- !is.na(coredata(pa))
@@ -701,6 +698,7 @@ colm <- function(pa,z,tau=-2:2) {
 #R on lagged R
 }
 
+#' @export
 arco <- function(pa=getbdh(su),su=su,type=c('i','f','p'),co=getrd(100),nmin=3,wmin=3,phis=0,phir=0) {
   type <- match.arg(type)
   if(type=='i') {
@@ -724,6 +722,7 @@ arco <- function(pa=getbdh(su),su=su,type=c('i','f','p'),co=getrd(100),nmin=3,wm
   sbar <- apply(pai%*%psi,2,mean) #score means
   rbar <- apply(pai-pai%*%z,2,mean) #residual means
   
+  y00 <- coredata(pai[1,,drop=FALSE]*0)
   s00 <- y00%*%psi
   r00 <- y00*0
   
@@ -741,7 +740,7 @@ arco <- function(pa=getbdh(su),su=su,type=c('i','f','p'),co=getrd(100),nmin=3,wm
   }
   list(
     act=pa,
-    fit=fit,
+    fit=zoo(fit,index(pa)),
     res=pa-fit,
     MSE=sum((pa-fit)^2,na.rm=TRUE)
   )

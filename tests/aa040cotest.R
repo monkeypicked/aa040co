@@ -74,63 +74,19 @@ image((wmat[,order(apply(wmat,2,sum,na.rm=T))]))
 wmat <- wmat
 #pruneztef
 
+#arco - autoregressive components
 aatopselect("t")
 getbdhgl()
 su <- getrdatv("jo","su",v=2)
 pa <-getbdh(su=su)
 phis <- 0.1
 phir <- 0.1
-arco <- function(su,type=c('i','f','p'),co=getrd(100),nmin=3,wmin=3) {
-  type <- match.arg(type)
-  if(type=='i') {
-    z <- getztei(su=su,type=type,nmin=nmin,wmin=wmin)$T
-    psi <- getztei(part='psi',type=type,nmin=nmin)$T
-    ldg <- tabtomat(data.frame(pruneztei(su=su,nmin=nmin)))
-    pai <- interpte(pa=pa,type=type,nmin=nmin,wmin=wmin)
-  } else if(type=='f') {
-    z <- getztei(su=su,type=type,nmin=nmin,wmin=wmin)$T
-    psi <- getztei(part='psi',type=type,nmin=nmin,wmin=wmin)$T
-    ldg <- tabtomat(data.frame(pruneztef(su=su,nmin=nmin,wmin=wmin)))
-    pai <- interpte(pa=pa,type=type,nmin=nmin,wmin=wmin)
-  } else if(type=='p') {
-    z <- getzco()$T
-    psi <- getzco(part='psi')$T
-    ldg <- ldgce(dtce(co))
-    pai <- interpce(pa=pa)
-  }
-  fit <- pa*NA
-  ldg[is.na(ldg)] <- 0
-  sbar <- apply(pai%*%psi,2,mean) #score means
-  rbar <- apply(pai-pai%*%z,2,mean) #residual means
-
-  s00 <- y00%*%psi
-  r00 <- y00*0
-  
-  for(i in 1:nrow(pa)) {
-    s01 <- sbar + (s00-sbar)*phis
-    r01 <- rbar + (r00-rbar)*phir
-    y01 <- s01%*%t(ldg)+r01 #updated one step ahead forecast
-    
-    y11 <- pa[i,]
-    y11[is.na(y11)] <- y01[is.na(y11)] 
-    
-    s00 <- y11%*%psi #this period score
-    r00 <- y11-s00%*%t(ldg) #this period residual
-    fit[i,] <- as.numeric(y01)
-  }
-  list(
-    act=pa,
-    fit=fit,
-    res=pa-fit,
-    MSE=sum(res^2)
-  )
-}
+!any(is.na(pa))
+x1 <- arco(pa=pa,phir=0,phis=0)
 
 
 
 
-getztei(part='psi',loocv=T)
-getzco(part='psi')
 
 
 su <- getrdatv("jo","su",v=2)
