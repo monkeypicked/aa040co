@@ -234,6 +234,8 @@ dfrce <- function(x,dat=max(index(x)))
 }
 
 
+#both the interp functions could/should iterate which would be easy with a loop on penultimate line and no paz
+
 #' @export
 interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su")),comp=c('T','M','S')) {
   comp <- match.arg(comp)
@@ -243,6 +245,18 @@ interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su")),co
   paz <- pa
   coredata(paz)[i] <- 0 #this does not affect the result if pa has same na as estimation window
   coredata(pa)[i] <- coredata(mscecomp(x=ce,ret=paz)[[comp]])[i]
+  pa
+}
+
+
+#' @export
+interpte <- function(pa=getbdh(su=getrdatv("jo","su")),type=c('f','i'),...) {
+  type <- match.arg(type)
+  z <- getztei(type=type,...)$T
+  i <- is.na(coredata(pa))
+  paz <- pa
+  coredata(paz)[i] <- 0 #this does not affect the result if pa has same na as estimation window
+  coredata(pa)[i] <- coredata(paz%*%z)[i]
   pa
 }
 
@@ -299,13 +313,22 @@ addbench <- function(
 #' getzco - covariance-based (PCA) interpolator 
 #' 
 #' @export
-getzco <- function(co=getrd(100)) {
-  ce <- dtce(co)
-  list(
-    M=fmpce(ce)[,1,drop=FALSE]%*%t(ldgce(ce)[,1,drop=FALSE]),
-    S=fmpce(ce)[,-1,drop=FALSE]%*%t(ldgce(ce)[,-1,drop=FALSE]),
-    T=fmpce(ce)%*%t(ldgce(ce))
-  )    
+getzco <- function(co=getrd(100),part=c('z','psi')) {
+ part <- match.arg(part)
+ ce <- dtce(co)
+ if(part=='z') {
+ list(
+   M=fmpce(ce)[,1,drop=FALSE]%*%t(ldgce(ce)[,1,drop=FALSE]),
+   S=fmpce(ce)[,-1,drop=FALSE]%*%t(ldgce(ce)[,-1,drop=FALSE]),
+   T=fmpce(ce)%*%t(ldgce(ce))
+ )
+ } else {
+   list(
+     M=fmpce(ce)[,1,drop=FALSE],
+     S=fmpce(ce)[,-1,drop=FALSE],
+     T=fmpce(ce)
+   )   
+ }
 }
 
 
@@ -370,9 +393,11 @@ pruneztef <- function(su=getrdatv("jo","su",2),da=su[,max(date)],wmin=2,nmin=4) 
 
 #' z for integer industries pruned to nmin/node
 #' 
+#' for part=psi, returns the postmultiplication matrix for factor scores; for part=z it is the matrix for 'fit'
 #' @export
-getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=3,wmin=3,type=c('i','f')) {
+getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=3,wmin=3,type=c('i','f'),part=c('z','psi')) {
   type <- match.arg(type)
+  part <- match.arg(part)
   if(type=='i') {
     te <- pruneztei(su=su,da=da,nmin=nmin)
   } else {
@@ -380,10 +405,15 @@ getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=
   }
   x <- tabtomat(data.frame(te))
   x[is.na(x)] <- 0
-  sol <- list(T=x%*%solve(crossprod(x))%*%t(x))
+  if(part=='z') {
+    postx <- t(x)
+  } else {
+    postx <- diag(ncol(x))
+  }
+  sol <- list(T=x%*%solve(crossprod(x))%*%postx)
   if(loocv) {
     for( i in 1:nrow(x) ) {
-      sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%t(x)
+      sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%postx
     }
     names(sol)[2:(1+nrow(x))] <- paste0('x',1:nrow(x))
   }
@@ -669,4 +699,50 @@ colm <- function(pa,z,tau=-2:2) {
 #T on lagged MS, delta MS, lagged R
 #MS on lagged MS and delta MS
 #R on lagged R
+}
+
+arco <- function(pa=getbdh(su),su=su,type=c('i','f','p'),co=getrd(100),nmin=3,wmin=3,phis=0,phir=0) {
+  type <- match.arg(type)
+  if(type=='i') {
+    z <- getztei(su=su,type=type,nmin=nmin,wmin=wmin)$T
+    psi <- getztei(part='psi',type=type,nmin=nmin)$T
+    ldg <- tabtomat(data.frame(pruneztei(su=su,nmin=nmin)))
+    pai <- interpte(pa=pa,type=type,nmin=nmin,wmin=wmin)
+  } else if(type=='f') {
+    z <- getztei(su=su,type=type,nmin=nmin,wmin=wmin)$T
+    psi <- getztei(part='psi',type=type,nmin=nmin,wmin=wmin)$T
+    ldg <- tabtomat(data.frame(pruneztef(su=su,nmin=nmin,wmin=wmin)))
+    pai <- interpte(pa=pa,type=type,nmin=nmin,wmin=wmin)
+  } else if(type=='p') {
+    z <- getzco()$T
+    psi <- getzco(part='psi')$T
+    ldg <- ldgce(dtce(co))
+    pai <- interpce(pa=pa)
+  }
+  fit <- pa*NA
+  ldg[is.na(ldg)] <- 0
+  sbar <- apply(pai%*%psi,2,mean) #score means
+  rbar <- apply(pai-pai%*%z,2,mean) #residual means
+  
+  s00 <- y00%*%psi
+  r00 <- y00*0
+  
+  for(i in 1:nrow(pa)) {
+    s01 <- sbar + (s00-sbar)*phis
+    r01 <- rbar + (r00-rbar)*phir
+    y01 <- s01%*%t(ldg)+r01 #updated one step ahead forecast
+    
+    y11 <- coredata(pa[i,])
+    y11[is.na(y11)] <- y01[is.na(y11)] 
+    
+    s00 <- y11%*%psi #this period score
+    r00 <- y11-s00%*%t(ldg) #this period residual
+    fit[i,] <- as.numeric(y01)
+  }
+  list(
+    act=pa,
+    fit=fit,
+    res=pa-fit,
+    MSE=sum((pa-fit)^2,na.rm=TRUE)
+  )
 }
