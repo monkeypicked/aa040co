@@ -137,3 +137,28 @@ plot(pax,pax1)
 
 
 arco(pa=pax,phis=1)
+
+
+
+###Unfo this test universe is pretty illiquid so cannot really test on it... wait for prod and use liquids
+
+#2015-05-27 test sequence prior to hatij
+require(aaco)
+aatopselect('t')
+getbdhgl()
+su0 <- getrd(140) #global ag
+
+builiq <- getbdp()[su0[,bui]][800<CRNCY_ADJ_MKT_CAP,bui]
+
+su <- setkey(su0,bui)[builiq]
+pa <- getbdh(su)
+ce <- dtce(data.table(cewrap(pa,nfac=2)))
+fmp <- fmpce(ce) 
+su <- setkey(su,bui)[bui] #selected no-na bui
+#putrd(su,'no hols 28 ag') #156
+pa <- getbdh(su)
+lc <- loocvi(pa[1:230,],nfac=2)
+max(abs(lc$mhatM-lc$mhatiM))
+max(abs(lc$mhatS-lc$mhatiS))
+max(abs(lc$mhatT-lc$mhatiT))
+ilcvsumm(lc)

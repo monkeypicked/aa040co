@@ -499,20 +499,46 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 #' @param ... passed to cewrap and thence to fms2
 #' @export
 loocvi <- function(pa=getbdh(su),...) {
-  mhatT <- mhatS <- mhatM <- m <- pa
+  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- mhatT <- mhatS <- mhatM <- m <- pa
   for(i in 1:nrow(m)) {
     mi <- m[-i,]
     ce <- dtce(data.table(cewrap(pa=mi,...)))
+    #this section identical to mhati, but harder to adapt for ij
     mscec <- mscecomp(ce,m[i,,drop=FALSE])
     mhatM[i,] <- mscec$M
     mhatS[i,] <- mscec$S
     mhatT[i,] <- mscec$T
+    #
+    fmp <- ce$fmp/as.numeric(ce$sdev)
+    ldg <- ce$loadings*as.numeric(ce$sdev)
+    sco <- mz(coredata(pa)[i, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
+    mhatiM[i,] <- mz(sco[, 1, drop = FALSE] %*% t(ldg[, 1, drop = FALSE]))
+    mhatiS[i,] <- mz(sco[,-1, drop = FALSE] %*% t(ldg[,-1, drop = FALSE]))
+    mhatiT[i,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
+    zdrop <- function(fmp,ldg,j=c("M","S","T")) {
+      jj <- switch(match.arg(j),M=1,S=2:ncol(fmp),T=1:ncol(fmp))
+      z <- fmp[,jj,drop=F]%*%t(ldg[,jj,drop=F])
+      dd <- diag(z)
+      iinv <- which((1e-10<dd) & (dd<1))
+      scal <- rep(1,length(dd))
+      scal[iinv] <- 1/(1-dd[iinv])
+      diag(z) <- 0
+      sweep(z,MAR=2,FUN="*",STAT=scal)      
+    }
+    #zd <- zdrop(fmp,ldg,"S")
+    mhatijM[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
+    mhatijS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
+    mhatijT[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"T")[fulce(ce),])
   }
   mhatlist <- lapply(list(M=mhatM,S=mhatS,T=mhatT),as.numeric)
+  mhatilist <- lapply(list(M=mhatiM,S=mhatiS,T=mhatiT),as.numeric)
+  mhatijlist <- lapply(list(M=mhatijM,S=mhatijS,T=mhatijT),as.numeric)
   mfitlist <- lapply(mscecomp(dtce(data.table(cewrap(pa=m,...))),m),as.numeric)
   names(mhatlist) <- paste0('mhat',names(mscec))
+  names(mhatilist) <- paste0('mhati',names(mscec))
+  names(mhatijlist) <- paste0('mhatij',names(mscec))
   names(mfitlist) <- paste0('mfit',names(mscec))
-  c(list(act=as.numeric(m)),mhatlist,mfitlist)
+  c(list(act=as.numeric(m)),mhatlist,mhatilist,mhatijlist,mfitlist)
 }
 
 #' returns fitted and loocv fit on pa, using te
