@@ -1,10 +1,13 @@
 require(aautil)
-aatopselect("test")
 require(aaco)
 require(aapa)
+require(aabd)
 require(quadprog)
 require(testthat)
 
+aatopselect("test")
+
+aabd::fixperc()
 
 #getbdhgl-----
 getbdhgl()
@@ -75,6 +78,7 @@ wmat <- wmat
 #pruneztef
 
 #arco - autoregressive components
+require(aaco)
 aatopselect("t")
 getbdhgl()
 su <- getrdatv("jo","su",v=2)
@@ -82,7 +86,37 @@ pa <-getbdh(su=su)
 phis <- 0.1
 phir <- 0.1
 !any(is.na(pa))
-x1 <- arco(pa=pa,phir=0,phis=0)
+
+
+pax <- getbdh(su=su,fi='best.g')
+nna <- 5000
+coredata(pax)[sample(1:length(pa),nna,rep=FALSE)] <- NA
+sum(is.na(pax))
+image(coredata(pax))
+
+x1 <- arco(pa=pax,phir=0,phis=0,typ='p')
+x2 <- arco(pa=pax,phir=0,phis=0,typ='i')
+sum(is.na(x1$fit))==0
+sum(is.na(x1$act))==nna
+mser <- -5:10
+mses <- -5:10
+for(i in seq_along(mser)) mser[i] <- arco(pa=pax,phir=mser[i]/10,phis=.6,typ='i')$MSE
+for(i in seq_along(mses)) mses[i] <- arco(pa=pax,phir=1.,phis=mses[i]/10,typ='i')$MSE
+
+par(mfrow=c(1,2))
+barplot(mser)
+barplot(mses)
+min(mses)
+min(mser)
+
+x1 <- arco(pa=pa,phir=0,phis=0,typ='p')
+x2 <- arco(pa=pa,phir=0,phis=0,typ='i')
+x1$MSE==x2$MSE
+
+
+
+
+x1 <- arco(pa=pa,su=su,phir=0,phis=0)
 
 
 
@@ -99,3 +133,7 @@ pax1 <- coredata(pa1)[i]
 cor(pax,pax1)
 plot(pax,pax1)
 
+
+
+
+arco(pa=pax,phis=1)

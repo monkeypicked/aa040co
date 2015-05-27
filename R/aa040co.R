@@ -234,31 +234,6 @@ dfrce <- function(x,dat=max(index(x)))
 }
 
 
-#both the interp functions could/should iterate which would be easy with a loop on penultimate line and no paz
-
-#' @export
-interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su")),comp=c('T','M','S')) {
-  comp <- match.arg(comp)
-  ce <- dtce(co)
-  stopifnot(all(sort(colnames(pa))==sort(buice(ce))))
-  i <- is.na(coredata(pa))
-  paz <- pa
-  coredata(paz)[i] <- 0 #this does not affect the result if pa has same na as estimation window
-  coredata(pa)[i] <- coredata(mscecomp(x=ce,ret=paz)[[comp]])[i]
-  pa
-}
-
-
-#' @export
-interpte <- function(pa=getbdh(su=getrdatv("jo","su")),type=c('f','i'),...) {
-  type <- match.arg(type)
-  z <- getztei(type=type,...)$T
-  i <- is.na(coredata(pa))
-  paz <- pa
-  coredata(paz)[i] <- 0 #this does not affect the result if pa has same na as estimation window
-  coredata(pa)[i] <- coredata(paz%*%z)[i]
-  pa
-}
 
 #internals----------------------------------------
 #' @export
@@ -310,27 +285,89 @@ addbench <- function(
 
 #--------na interpolation section
 
-#' getzco - covariance-based (PCA) interpolator 
+# getzco - covariance-based (PCA) interpolator 
+# 
+# @export
+# getzco <- function(co=getrd(100),part=c('z','psi')) {
+#  part <- match.arg(part)
+#  ce <- dtce(co)
+#  if(part=='z') {
+#  list(
+#    M=fmpce(ce)[,1,drop=FALSE]%*%t(ldgce(ce)[,1,drop=FALSE]),
+#    S=fmpce(ce)[,-1,drop=FALSE]%*%t(ldgce(ce)[,-1,drop=FALSE]),
+#    T=fmpce(ce)%*%t(ldgce(ce))
+#  )
+#  } else {
+#    list(
+#      M=fmpce(ce)[,1,drop=FALSE],
+#      S=fmpce(ce)[,-1,drop=FALSE],
+#      T=fmpce(ce)
+#    )   
+#  }
+# }
+
+
+#both the interp functions could/should iterate which would be easy with a loop on penultimate line and no paz
+
+#' interpolates using pca
 #' 
+#' single step interpolation of M,S components using co, starting from 0
+#' @param co covariance object
+#' @param pa panel with NA 
+#' @param comp text flag M/S/T for component to use
 #' @export
-getzco <- function(co=getrd(100),part=c('z','psi')) {
- part <- match.arg(part)
- ce <- dtce(co)
- if(part=='z') {
- list(
-   M=fmpce(ce)[,1,drop=FALSE]%*%t(ldgce(ce)[,1,drop=FALSE]),
-   S=fmpce(ce)[,-1,drop=FALSE]%*%t(ldgce(ce)[,-1,drop=FALSE]),
-   T=fmpce(ce)%*%t(ldgce(ce))
- )
- } else {
-   list(
-     M=fmpce(ce)[,1,drop=FALSE],
-     S=fmpce(ce)[,-1,drop=FALSE],
-     T=fmpce(ce)
-   )   
- }
+interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su")),comp=c('T','M','S')) {
+  comp <- match.arg(comp)
+  ce <- dtce(co)
+  stopifnot(all(sort(colnames(pa))==sort(buice(ce))))
+  i <- is.na(coredata(pa))
+  paz <- pa
+  coredata(paz)[i] <- 0 #this does not affect the result if pa has same na as estimation window
+  coredata(pa)[i] <- coredata(mscecomp(x=ce,ret=paz)[[comp]])[i]
+  pa
 }
 
+
+#' interpolates using regression on te
+#' 
+#' single step interpolation of M,S components using co, starting from 0
+#' @param pa panel
+#' @param lo a 'loadings' object, named list of z, p, l (components postmult, phi, lambda)
+#' @export 
+interpte <- function(pa=getbdh(su=getrdatv("jo","su")),lo=getlote()$lo) {
+  i <- is.na(coredata(pa))
+  coredata(pa)[i] <- 0
+  coredata(pa)[i] <- coredata(pa%*%lo$z)[i]
+  pa
+}
+
+#' generate covariance-based (PCA) interpolator 
+#' 
+#' returns three 'loadings' objects named lo, l, p
+#' @param co covariance object
+#' @export
+getloco <- function(co=getrd(100)) {
+  ce <- dtce(co)
+  fmp <- fmpce(ce)
+  ldg <- ldgce(ce)
+  list(
+    lo=list(
+        z=fmp%*%t(ldg),
+        l=ldg,
+        p=fmp
+      ),
+    M=list(
+      z=fmp[,1,drop=FALSE]%*%t(ldg[,1,drop=FALSE]),
+      l=ldg[,1,drop=FALSE],
+      p=fmp[,1,drop=FALSE]
+    ),
+    S=list(
+      z=fmp[,-1,drop=FALSE]%*%t(ldg[,-1,drop=FALSE]),
+      l=ldg[,-1,drop=FALSE],
+      p=fmp[,-1,drop=FALSE]
+    )
+  )
+}
 
 # getzte - industry-based interpolator
 # 
@@ -355,8 +392,12 @@ getzco <- function(co=getrd(100),part=c('z','psi')) {
 # }
 
 
-#' integer industries pruned to nmin/node
+#' integer industries prune
 #' 
+#' returns data.table with cols: bui bcode BRPLA
+#' @param su security universe
+#' @param da date
+#' @param nmin min # per node
 #' @export
 pruneztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],nmin=3) {
   buix <- su[date==da,unique(bui)]
@@ -372,13 +413,19 @@ pruneztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],nmin=3) {
   te
 }
 
-#' fractional industries pruned to nmin/node
+#' fractional industries prune
 #' 
-#' prunes the tree, leaving nodes satisfying criteria for aggregate weight and number of segments
+#' returns data.table with cols: bui bcode BRPLA
+#' currently silently drops bui that have no fractional info - this needs a rethink
+#' @param su security universe
+#' @param da date
+#' @param nmin min # per node
+#' @param nmin min aggregate weight per node
 #' @export
 pruneztef <- function(su=getrdatv("jo","su",2),da=su[,max(date)],wmin=2,nmin=4) {
   buix <- su[date==da,unique(bui)]
-  te <-  getbdp(mnem=data.table(data.frame(field = c("BICS_REVENUE_PERC_LEVEL_ASSIGNED"))))[buix][,list(bui,bcode=BICS_LEVEL_CODE_ASSIGNED,BRPLA=BICS_REVENUE_PERC_LEVEL_ASSIGNED/100)][!is.na(BRPLA)]
+  #next line has allow=TRUE which copes with empty files
+  te <-  getbdp(mnem=data.table(data.frame(field = c("BICS_REVENUE_PERC_LEVEL_ASSIGNED"))))[buix,allow=TRUE][,list(bui,bcode=BICS_LEVEL_CODE_ASSIGNED,BRPLA=BICS_REVENUE_PERC_LEVEL_ASSIGNED/100)][!is.na(BRPLA)]
   tesums <- setcolorder(setkey(te[,list(agg=sum(BRPLA),count=.N),bcode],bcode)[,startcode:=bcode][,bagg:=agg][,bcount:=count],c('startcode','agg','count','bcode','bagg','bcount'))
   clen <- tesums[,max(nchar(bcode))]
   while(0<clen) {
@@ -387,44 +434,72 @@ pruneztef <- function(su=getrdatv("jo","su",2),da=su[,max(date)],wmin=2,nmin=4) 
     clen <- clen-2
   }
   te <- setkey(te,bcode)[setkey(tesums,startcode)][,bcode:=i.bcode][,i.bcode:=NULL][,agg:=NULL][,bagg:=NULL][,count:=NULL][,bcount:=NULL][bcode=="",bcode:="00"]
-  setkey(te[,list(BRPLA=sum(BRPLA)),list(bui,bcode)],bui,bcode)
+  setkey(te[,list(BRPLA=sum(BRPLA)),list(bui,bcode)],bui,bcode)[]
 }
 
+###REPLACED WITH getlote but different o/p structure
+# z for integer industries pruned to nmin/node
+# 
+# for part=psi, returns the postmultiplication matrix for factor scores; for part=z it is the matrix for 'fit'
+# getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=3,wmin=3,type=c('i','f'),part=c('z','psi')) {
+#   type <- match.arg(type)
+#   part <- match.arg(part)
+#   if(type=='i') {
+#     te <- pruneztei(su=su,da=da,nmin=nmin)
+#   } else {
+#     te <- pruneztef(su=su,da=da,nmin=nmin,wmin=wmin)    
+#   }
+#   x <- tabtomat(data.frame(te))
+#   x[is.na(x)] <- 0
+#   if(part=='z') {
+#     postx <- t(x)
+#   } else {
+#     postx <- diag(ncol(x))
+#   }
+#   sol <- list(T=x%*%solve(crossprod(x))%*%postx)
+#   if(loocv) {
+#     for( i in 1:nrow(x) ) {
+#       sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%postx
+#     }
+#     names(sol)[2:(1+nrow(x))] <- paste0('x',1:nrow(x))
+#   }
+#   sol
+# }
 
-#' z for integer industries pruned to nmin/node
+#' loadings object from industry object
 #' 
-#' for part=psi, returns the postmultiplication matrix for factor scores; for part=z it is the matrix for 'fit'
+#' @param te industries
+#' @param loocv flac to drop 
 #' @export
-getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=3,wmin=3,type=c('i','f'),part=c('z','psi')) {
-  type <- match.arg(type)
-  part <- match.arg(part)
-  if(type=='i') {
-    te <- pruneztei(su=su,da=da,nmin=nmin)
-  } else {
-    te <- pruneztef(su=su,da=da,nmin=nmin,wmin=wmin)    
-  }
+getlote <- function(te=pruneztei(),loocv=FALSE) {
   x <- tabtomat(data.frame(te))
   x[is.na(x)] <- 0
-  if(part=='z') {
-    postx <- t(x)
-  } else {
-    postx <- diag(ncol(x))
+  mylo <- function(x,i=NULL) { #local function to drop identifiers from x
+    if(!is.null(i)) { xl <- x[-i,,drop=FALSE] } else { xl <- x }
+    list(
+      z = xl%*%solve(crossprod(xl))%*%t(x),
+      p = xl%*%solve(crossprod(xl)),
+      l = x
+    )
   }
-  sol <- list(T=x%*%solve(crossprod(x))%*%postx)
+  sol <- list(lo=mylo(x))
   if(loocv) {
     for( i in 1:nrow(x) ) {
-      sol[[i+1]] <- x[-i,]%*%solve(crossprod(x[-i,]))%*%postx
+      sol[[i+1]] <- mylo(x,i)
     }
-    names(sol)[2:(1+nrow(x))] <- paste0('x',1:nrow(x))
+    names(sol)[2:(1+nrow(x))] <- paste0('lo',1:nrow(x))
   }
   sol
 }
 
-#'loocvi - drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
+#' returns fitted and loocv fit on pa, using pca
+#' 
+#' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
+#' @param pa panel
+#' @param ... passed to cewrap and thence to fms2
 #' @export
 loocvi <- function(pa=getbdh(su),...) {
   mhatT <- mhatS <- mhatM <- m <- pa
-  comp <- 
   for(i in 1:nrow(m)) {
     mi <- m[-i,]
     ce <- dtce(data.table(cewrap(pa=mi,...)))
@@ -440,50 +515,58 @@ loocvi <- function(pa=getbdh(su),...) {
   c(list(act=as.numeric(m)),mhatlist,mfitlist)
 }
 
-#'loocvj - drops each column in turn of pa, ie each identifier bui - note there is NO iteration, no substitutio of the 'left out', it is just fitted which is more correct
+#' returns fitted and loocv fit on pa, using te
+#' 
+#' drops each column in turn of pa, ie each identifier bui - note there is NO iteration, no substitutio of the 'left out', it is just fitted which is more correct
+#' @param pa panel
+#' @param lo loadings object
 #' @export
-loocvj <- function(pa=getbdh(su),z=getzte(te=getrd(105),loocv=TRUE),...) {
-  stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
-  stopifnot(all.equal(colnames(pa),colnames(z[[1]])))
+loocvj <- function(pa=getbdh(su),lo=getlote(loocv=TRUE)) {
+  #stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
+  stopifnot(all.equal(colnames(pa),colnames(lo$lo$z)))
   mhat <- m <- coredata(pa)
   for(j in 1:ncol(m)) { #drop each column (identifier bui) in turn and postmultiply by the (x'x)-1.X
     mj <- m[,-j]
-    xxj <- z[[paste0('x',j)]]
+    xxj <- lo[[paste0('lo',j)]][['z']]
     mhat[,j] <- mj%*%(xxj[,j,drop=FALSE])
   }
-  mfit <- m%*%z[[1]]
+  mfit <- m%*%lo[['lo']][['z']]
   list(act=as.numeric(m),mhat=as.numeric(mhat),mfit=as.numeric(mfit))
 }
 
-#'iterloocv - drops each observation in turn and replaces it with an iterated
+#' returns fitted and loocv fit on pa, using te
+#' 
+#' iterloocv - drops each observation in turn and replaces it with an iterated
+#' @param pa panel
+#' @param lo loadings object
+#' @param niter # iterations
+#' @param myfun text name of function to apply to actual, fit, hat
 #' @export
-iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2,myfun=c("as.numeric","mattotab","as.matrix")) {
+iterloocv <- function(pa=getbdh(su),lo=getloco(),niter=2,myfun=c("as.numeric","mattotab","as.matrix")) {
   myfun <- get(match.arg(myfun))
-  
-  stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
-  stopifnot(all.equal(colnames(pa),colnames(z[[1]])))
+  #stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
+  stopifnot(all.equal(colnames(pa),colnames(lo$lo$z)))
   mhat <- m <- coredata(pa)
-  comp <- names(z)
+  comp <- names(lo)
   mfitlist <- mhatlist <- NULL
   for(i in 1:nrow(m)) {
     mi <- mean(m[i,])
     for(j in 1:ncol(m)) {
       mrow <- m[i,,drop=FALSE]
       mrow[,j] <- mi
-      for(l in 1:niter) {mrow[1,j] <- (mrow%*%z[['T']])[1,j]}
+      for(l in 1:niter) {mrow[1,j] <- (mrow%*%lo$lo$z)[1,j]}
       mhat[i,j] <- mrow[,j]
     }
   }
-  for(k in comp) {
-    mhatlist[[k]] <- mhat%*%z[[k]]
-    mfitlist[[k]] <- m%*%z[[k]]
+  for(k in seq_along(comp)) {
+    mhatlist[[comp[k]]] <- mhat%*%lo[[comp[k]]]$z
+    mfitlist[[comp[k]]] <- m%*%lo[[comp[k]]]$z
   }
   names(mhatlist) <- paste0('mhat',comp)
   names(mfitlist) <- paste0('mfit',comp)
   c(list(act=lapply(list(m),myfun)[[1]]),lapply(mhatlist,myfun),lapply(mfitlist,myfun))
 }
 
-# #' @export
 # ilcvsumm <- function(x=iterloocv(...),...) {
 #   s1 <- summary(lm(act ~ fit,data=data.frame(x)))
 #   s2 <- summary(lm(act ~ loocv,data=data.frame(x)))
@@ -504,6 +587,9 @@ iterloocv <- function(pa=getbdh(su),z=getzco(),niter=2,myfun=c("as.numeric","mat
 #   tab
 # }
 
+#' summary of loadings object
+#' 
+#' @param x result with iter, fit, act
 #' @export
 ilcvsumm <- function(x=iterloocv(...),...) {
   tab <- NULL
@@ -514,48 +600,49 @@ ilcvsumm <- function(x=iterloocv(...),...) {
   setkey(tab[,component:=names(x)[-1]],component)[]
 }
 
-#'summarises correlation of 'start' with final iteration
-#' @export
-iterate0 <- function(n=10,niter=5,FUN=mean,...) {
-  suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
-}
+# #summarises correlation of 'start' with final iteration
+# # @export
+# iterate0 <- function(n=10,niter=5,FUN=mean,...) {
+#   suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
+# }
+# 
+# #wrapper to iterate2, applies 'drop' ie sets NA a specified fraction of data
+# # @export
+# iterate1 <- function(seed=1,pa=getbdh(su),z=getzco()$T,idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
+#   m <- coredata(pa)
+#   if(0<idropfraction) {
+#     mask <- m-m+1
+#     idrop <- round(length(mask)*idropfraction)
+#     mask[1:idrop] <- NA
+#     for(i in 1:nrow(mask)) mask[i,] <- mask[i,sample(1:ncol(m),size=ncol(m))]
+#     m <- m*mask
+#   }
+#   ina <- which(is.na(m))
+#   if(length(ina)==0) {
+#     return()
+#   } else {
+#     x <- iterate2(m,z,initial,niter)
+#   }
+#   if(0<idropfraction) x[1:idrop,'start'] <- coredata(pa)[ina]
+#   x
+# }
+# 
+# #iterate2 - inner function applying z 
+# # @export
+# iterate2 <- function(m,z,initial,niter=5) {
+#   ina <- which(is.na(m))
+#   res <- matrix(0*NA,length(ina),niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
+#   res[,"0"] <- initial
+#   m[ina] <- initial
+#   for(i in 1:niter) {
+#     m[ina] <- (m%*%z)[ina]
+#     res[,as.character(i)] <- m[ina]
+#   }
+#   res
+# }
 
-#'wrapper to iterate2, applies 'drop' ie sets NA a specified fraction of data
-#' @export
-iterate1 <- function(seed=1,pa=getbdh(su),z=getzco()$T,idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
-  m <- coredata(pa)
-  if(0<idropfraction) {
-    mask <- m-m+1
-    idrop <- round(length(mask)*idropfraction)
-    mask[1:idrop] <- NA
-    for(i in 1:nrow(mask)) mask[i,] <- mask[i,sample(1:ncol(m),size=ncol(m))]
-    m <- m*mask
-  }
-  ina <- which(is.na(m))
-  if(length(ina)==0) {
-    return()
-  } else {
-    x <- iterate2(m,z,initial,niter)
-  }
-  if(0<idropfraction) x[1:idrop,'start'] <- coredata(pa)[ina]
-  x
-}
-
-#'iterate2 - inner function applying z 
-#' @export
-iterate2 <- function(m,z,initial,niter=5) {
-  ina <- which(is.na(m))
-  res <- matrix(0*NA,length(ina),niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
-  res[,"0"] <- initial
-  m[ina] <- initial
-  for(i in 1:niter) {
-    m[ina] <- (m%*%z)[ina]
-    res[,as.character(i)] <- m[ina]
-  }
-  res
-}
-
-#'runco self-documenting run of 4 flavours of testing
+#' script in a function
+#' 
 #' @export
 runco <- function(nmin=2:14,wmin=2:10) {
   require(aapa)
@@ -563,43 +650,46 @@ runco <- function(nmin=2:14,wmin=2:10) {
   aatopselect('test')
   getbdhgl()
   su <- getrd(99)
-  co <- getrd(100)
+  da <- su[,max(date)]
+  co <- getrd(150)
   pa <- getbdh(su)
   x <- vector("list")
   
-  x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,z=getzco()))[,nmin:=NA][,wmin:=NA][,iterated:="iterated"][,model:="PCA"]
-  x[[length(x)+1]] <- ilcvsumm(loocvi(pa,z=getzco()))[,nmin:=NA][,wmin:=NA][,iterated:="non-iterated"][,model:="PCA"]
+  x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,lo=getloco()))[,nmin:=NA][,wmin:=NA][,iterated:="iterated"][,model:="PCA"]
+  x[[length(x)+1]] <- ilcvsumm(loocvi(pa))[,nmin:=NA][,wmin:=NA][,iterated:="non-iterated"][,model:="PCA"]
   
   #fractional - nmin
   for(i in seq_along(nmin)) {
     print(i)
-    zit <- getztei(type='f',nmin=nmin[i],wmin=min(wmin))
-    znit <- getztei(type='f',nmin=nmin[i],loocv=T,wmin=min(wmin))
-    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,z=zit))[,nmin:=nmin[i]][,wmin:=min(wmin)][,iterated:="iterated"][,model:="fractional"]
-    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,z=znit))[,nmin:=nmin[i]][,wmin:=min(wmin)][,iterated:="non-iterated"][,model:="fractional"]
+    loit <- getlote(te=pruneztef(su=su,da=da,nmin=nmin[i]))
+    lonit <- getlote(te=pruneztef(nmin=nmin[i],wmin=min(wmin)),loocv=T)
+    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,lo=loit))[,nmin:=nmin[i]][,wmin:=min(wmin)][,iterated:="iterated"][,model:="fractional"]
+    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,lo=lonit))[,nmin:=nmin[i]][,wmin:=min(wmin)][,iterated:="non-iterated"][,model:="fractional"]
   }
   #fractional - wmin
   for(i in seq_along(wmin)) {
     print(i)
-    zit <- getztei(type='f',nmin=min(nmin),wmin=wmin[i])
-    znit <- getztei(type='f',nmin=min(nmin),loocv=T,wmin=wmin[i])
-    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,z=zit))[,nmin:=min(nmin)][,wmin:=wmin[i]][,iterated:="iterated"][,model:="fractional"]
-    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,z=znit))[,nmin:=min(nmin)][,wmin:=wmin[i]][,iterated:="non-iterated"][,model:="fractional"]
+    loit <- getlote(te=pruneztef(su=su,da=da,nmin=min(nmin),wmin=wmin[i]))
+    lonit <- getlote(te=pruneztef(nmin=min(nmin),wmin=wmin[i]),loocv=T)
+    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,lo=loit))[,nmin:=min(nmin)][,wmin:=wmin[i]][,iterated:="iterated"][,model:="fractional"]
+    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,lo=lonit))[,nmin:=min(nmin)][,wmin:=wmin[i]][,iterated:="non-iterated"][,model:="fractional"]
   }
   #integer
   for(i in seq_along(nmin)) {
     print(i)
-    zit <- getztei(type='i',nmin=nmin[i])
-    znit <- getztei(type='i',nmin=nmin[i],loocv=T)
-    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,z=zit))[,nmin:=nmin[i]][,wmin:=NA][,iterated:="iterated"][,model:="integer"]
-    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,z=znit))[,nmin:=nmin[i]][,wmin:=NA][,iterated:="non-iterated"][,model:="integer"]
+    loit <- getlote(te=pruneztei(su=su,da=da,nmin=nmin[i]))
+    lonit <- getlote(te=pruneztef(nmin=nmin[i]),loocv=T)
+    x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,lo=loit))[,nmin:=nmin[i]][,wmin:=NA][,iterated:="iterated"][,model:="integer"]
+    x[[length(x)+1]] <- ilcvsumm(loocvj(pa,lo=lonit))[,nmin:=nmin[i]][,wmin:=NA][,iterated:="non-iterated"][,model:="integer"]
   }
 
   putrdatv(body(runco),app='ilcv',type=length(x))
   putrdatv(x,app='ilcv',type='nmin')
 }
 
-
+#' accessor/filter for 'co' results
+#' 
+#' @param x named list defining output filter
 #' @export
 getco <- function(x=list(model='fractional',iterated='non-iterated',nmin=8,component='mhat')) {
   co <- setkeyv(rbindlist(getrdatv(app='ilcv',type='nmin')),names(x))
@@ -698,44 +788,46 @@ colm <- function(pa,z,tau=-2:2) {
 #R on lagged R
 }
 
+#' interpolation of missing 
+#' 
+#' @param pa panel
+#' @param co covariance
+#' @param te industry
+#' @param phis ar1 on systematic components
+#' @param phir ar1 on residual
+#' @param type i/f/p string for integer, fractional, pca
 #' @export
-arco <- function(pa=getbdh(su),su=su,type=c('i','f','p'),co=getrd(100),nmin=3,wmin=3,phis=0,phir=0) {
+arco <- function(pa=getbdh(),co=getrd(100),te=pruneztei(),phis=0,phir=0,type=c('i','f','p')) {
   type <- match.arg(type)
   if(type=='i') {
-    z <- getztei(su=su,type=type,nmin=nmin,wmin=wmin)$T
-    psi <- getztei(part='psi',type=type,nmin=nmin)$T
-    ldg <- tabtomat(data.frame(pruneztei(su=su,nmin=nmin)))
-    pai <- interpte(pa=pa,type=type,nmin=nmin,wmin=wmin)
+    lo <- getlote(te=te)$lo
+    pai <- interpte(pa=pa,lo=lo)
   } else if(type=='f') {
-    z <- getztei(su=su,type=type,nmin=nmin,wmin=wmin)$T
-    psi <- getztei(part='psi',type=type,nmin=nmin,wmin=wmin)$T
-    ldg <- tabtomat(data.frame(pruneztef(su=su,nmin=nmin,wmin=wmin)))
-    pai <- interpte(pa=pa,type=type,nmin=nmin,wmin=wmin)
+    lo <- getlote(te=te)$lo
+    pai <- interpte(pa=pa,lo=lo)
   } else if(type=='p') {
-    z <- getzco()$T
-    psi <- getzco(part='psi')$T
-    ldg <- ldgce(dtce(co))
+    lo <- getloco(co=co)$lo
     pai <- interpce(pa=pa)
   }
   fit <- pa*NA
-  ldg[is.na(ldg)] <- 0
-  sbar <- apply(pai%*%psi,2,mean) #score means
-  rbar <- apply(pai-pai%*%z,2,mean) #residual means
+  lo$l[is.na(lo$l)] <- 0
+  sbar <- apply(pai%*%lo$p,2,mean) #score means
+  rbar <- apply(pai-pai%*%lo$z,2,mean) #residual means
   
   y00 <- coredata(pai[1,,drop=FALSE]*0)
-  s00 <- y00%*%psi
+  s00 <- y00%*%lo$p
   r00 <- y00*0
   
   for(i in 1:nrow(pa)) {
     s01 <- sbar + (s00-sbar)*phis
     r01 <- rbar + (r00-rbar)*phir
-    y01 <- s01%*%t(ldg)+r01 #updated one step ahead forecast
+    y01 <- s01%*%t(lo$l)+r01 #updated one step ahead forecast
     
     y11 <- coredata(pa[i,])
     y11[is.na(y11)] <- y01[is.na(y11)] 
     
-    s00 <- y11%*%psi #this period score
-    r00 <- y11-s00%*%t(ldg) #this period residual
+    s00 <- y11%*%lo$p #this period score
+    r00 <- y11-s00%*%t(lo$l) #this period residual
     fit[i,] <- as.numeric(y01)
   }
   list(
@@ -745,3 +837,21 @@ arco <- function(pa=getbdh(su),su=su,type=c('i','f','p'),co=getrd(100),nmin=3,wm
     MSE=sum((pa-fit)^2,na.rm=TRUE)
   )
 }
+
+#returns a list co, tei, tef
+# getz <- function(ico=100,isu=99,da=su[,max(date)],nmin=3,wmin=3) {
+#   co <- getrd(ico)
+#   list(co=list(
+#           z=getzco(co=co,part='z'),
+#           p=getzco(co=co,part='psi'),
+#           l=getzco(co=co,part='lambda') #does not exist
+#           ),
+#        #tei=getztei(su,da,loocv,type,part)
+#        tei=list(
+#           z=getztei(isu=isu,da=da,loocv,type,part='z'),
+#           p=getztei(isu=isu,da=da,loocv,type,part='psi'),
+#           l=getztei(isu=isu,da=da,loocv,type,part='lambda') #not exists
+#           ),
+#        tef=
+#      )
+# }
