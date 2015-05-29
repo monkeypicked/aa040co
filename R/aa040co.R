@@ -1,4 +1,3 @@
-
 #' top-level derive method for covariance table
 #'
 #' loads data to global if not exists; loops through date estimating co, convert to data.table, save to rd
@@ -499,15 +498,16 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 #' @param ... passed to cewrap and thence to fms2
 #' @export
 loocvi <- function(pa=getbdh(su),...) {
-  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- mhatT <- mhatS <- mhatM <- m <- pa
+#  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- mhatT <- mhatS <- mhatM <- m <- pa
+  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- m <- pa
   for(i in 1:nrow(m)) {
     mi <- m[-i,]
     ce <- dtce(data.table(cewrap(pa=mi,...)))
     #this section identical to mhati, but harder to adapt for ij
-    mscec <- mscecomp(ce,m[i,,drop=FALSE])
-    mhatM[i,] <- mscec$M
-    mhatS[i,] <- mscec$S
-    mhatT[i,] <- mscec$T
+#     mscec <- mscecomp(ce,m[i,,drop=FALSE])
+#     mhatM[i,] <- mscec$M
+#     mhatS[i,] <- mscec$S
+#     mhatT[i,] <- mscec$T
     #
     fmp <- ce$fmp/as.numeric(ce$sdev)
     ldg <- ce$loadings*as.numeric(ce$sdev)
@@ -530,15 +530,16 @@ loocvi <- function(pa=getbdh(su),...) {
     mhatijS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
     mhatijT[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"T")[fulce(ce),])
   }
-  mhatlist <- lapply(list(M=mhatM,S=mhatS,T=mhatT),as.numeric)
+#   mhatlist <- lapply(list(M=mhatM,S=mhatS,T=mhatT),as.numeric)
   mhatilist <- lapply(list(M=mhatiM,S=mhatiS,T=mhatiT),as.numeric)
   mhatijlist <- lapply(list(M=mhatijM,S=mhatijS,T=mhatijT),as.numeric)
   mfitlist <- lapply(mscecomp(dtce(data.table(cewrap(pa=m,...))),m),as.numeric)
-  names(mhatlist) <- paste0('mhat',names(mscec))
-  names(mhatilist) <- paste0('mhati',names(mscec))
-  names(mhatijlist) <- paste0('mhatij',names(mscec))
-  names(mfitlist) <- paste0('mfit',names(mscec))
-  c(list(act=as.numeric(m)),mhatlist,mhatilist,mhatijlist,mfitlist)
+#   names(mhatlist) <- paste0('mhat',names(mscec))
+  names(mhatilist) <- paste0('mtwiddlei',c('M','S','T'))
+  names(mhatijlist) <- paste0('mtwiddleij',c('M','S','T'))
+  names(mfitlist) <- paste0('mhat',c('M','S','T'))
+# c(list(act=as.numeric(m)),mhatlist,mhatilist,mhatijlist,mfitlist)
+  c(list(act=as.numeric(m)),mhatilist,mhatijlist,mfitlist)
 }
 
 #' returns fitted and loocv fit on pa, using te

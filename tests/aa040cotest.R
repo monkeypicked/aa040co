@@ -144,21 +144,18 @@ arco(pa=pax,phis=1)
 
 #2015-05-27 test sequence prior to hatij
 require(aaco)
-aatopselect('t')
+aatopselect('p')
 getbdhgl()
-su0 <- getrd(140) #global ag
 
-builiq <- getbdp()[su0[,bui]][800<CRNCY_ADJ_MKT_CAP,bui]
-
-su <- setkey(su0,bui)[builiq]
+su0 <- getrd(144) #ukxdaxcacaex
+su <- unique(setkey(su0,bui))
 pa <- getbdh(su)
 ce <- dtce(data.table(cewrap(pa,nfac=2)))
-fmp <- fmpce(ce) 
-su <- setkey(su,bui)[bui] #selected no-na bui
-#putrd(su,'no hols 28 ag') #156
-pa <- getbdh(su)
-lc <- loocvi(pa[1:230,],nfac=2)
-max(abs(lc$mhatM-lc$mhatiM))
-max(abs(lc$mhatS-lc$mhatiS))
-max(abs(lc$mhatT-lc$mhatiT))
-ilcvsumm(lc)
+
+if(greprd('note18crossvalidatedpca')) {
+  lcl <- getrd(max(greprd('note18crossvalidatedpca')))
+} else {
+  lcl <- vector('list',5)
+  for (i in seq_along(lcl)) lcl[[i]] <- ilcvsumm(loocvi(pa,nfac=2^i)) 
+  putrd(lcl,'note18crossvalidatedpca')
+}
