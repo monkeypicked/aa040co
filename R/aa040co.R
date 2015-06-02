@@ -870,6 +870,52 @@ arco <- function(pa=getbdh(),co=getrd(100),te=pruneztei(),phis=0,phir=0,type=c('
   )
 }
 
+
+
+myscreen <- function(da='2014-12-31',j=1:100,thresh=c(valid=.9,size=2000),prev="EQ0000000000047098",nreq=20) {
+  stopifnot((thresh[1]<=1))
+  da1 <- max(ca[as.character(date)<=da,date])
+  x1 <- zoo(rollapplyr(data=!is.na(prem.g[,j]),width=52,mean,fill=NA),index(prem.g))[as.Date(da1)]
+  j1 <- coredata(x1)>=thresh[1]
+  stopifnot(nreq<=sum(j1,na.rm=TRUE))
+  b1 <- colnames(j1)[j1]
+  x2 <- mcap.g[as.Date(da1),b1]
+  x2[,is.na(x2)] <- 0
+  j2 <- thresh[2]<x2
+  if(nreq>=sum(j2,na.rm=TRUE))   browser()
+  b2 <- colnames(x2[,j2])
+  setkey(data.table(bui=b2,inprev=-as.numeric(b2%in%prev),mcap=-as.numeric(coredata(x2)[,b2])),inprev,mcap)[1:nreq,]
+}
+
+myrepscr <- function(da=seq.Date(from=as.Date('2006-12-31'),by=365.25,len=8),...) {
+  prev <- NULL
+  ll <- NULL
+  for(i in seq_along(da)) {
+    ll[[i]] <- myscreen(prev=prev,da=da[i],...)
+    prev <- ll[[i]][,bui]
+  }
+  ll
+}
+
+
+#' security universe scoring high on multiple criteria (in last period, no na, high mcap)
+#' 
+#' @param years universe is reviewed each yearend
+#' @param nsel number to select
+#' @param x panel for testing
+#' @export
+maxdensu <- function(years=2009:2014,nsel=1000,x=best.g) {
+  patt <- paste0("^",years,".?")
+  ll <- NULL
+  for( i in seq_along(years)) {
+    test <- x[grep(patt=patt[i],rownames(x)),]
+    x1 <- sort(apply(is.na(test),2,sum))[1:nsel]
+    ll[[i]] <- data.table(date=max(index(test)),bui=names(x1),nas=as.numeric(x1))
+  }
+  rbindlist(ll)
+}
+
+
 #returns a list co, tei, tef
 # getz <- function(ico=100,isu=99,da=su[,max(date)],nmin=3,wmin=3) {
 #   co <- getrd(ico)
