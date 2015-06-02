@@ -15,12 +15,13 @@
 #' deraaco()
 #' }
 #' @export
+#' @import data.table
 deraaco <- function(su=getrdatv("jo","su"),da=su[,sort(unique(date))],verbose=TRUE,nfac=20,...) {
   if(! exists("prem.g",envir=globalenv())) getbdhgl() #gets latest premium, vix, mcap
   x <- vector("list",length(da))
   for(i in seq_along(da)) {
     if(verbose) print(da[i])
-    x[[i]] <- data.table(cewrap(pa=getbdh(su=su,da=da[i]),nfac=nfac,...))
+    x[[i]] <- data.table(cewrap(pa=getbdh(su=su,da=da[i]),nfac=nfac,da=da[i],...))
   }
   putrdatv(rbindlist(x),"jo","co")
 }
@@ -93,8 +94,7 @@ getbdh <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)]
 #' cewrap()
 #' }
 #' @export
-cewrap <- function (pa=getbdh(), normalise="NONE", nfac=20, applyvix=TRUE, mixvix=.5, bench="equal",...) {
-  da <- max(index(pa))
+cewrap <- function (pa=getbdh(), normalise="NONE", nfac=20, applyvix=TRUE, mixvix=.5, bench="equal",da=max(index(pa)),...) {
   if (applyvix) {
      vix <- na.locf(vix.g )
      vixinverse <- 1/(mixvix * vix + (1 - mixvix) * 
@@ -741,7 +741,7 @@ fitplot <- function(size=min(1000,0.1*length(iok)),vbl=list(
       izap <- sample(iok,siz=size,rep=F)
       act <- coredata(pa)[izap]
       coredata(pa)[izap]<-NA
-      xint <- interpce(pa=pa,comp=comp[j])
+      xint <- interpce(pa=pa,comp=comp[j]) #needs co... not fixed
       int <- coredata(xint)[izap]
       stopifnot(all(abs(act - int)>1e-10))
       lmx <- summary(lm(act~int))
@@ -767,7 +767,7 @@ examplebui <- function(co=getrd(100),iselect=4) {
   for(j in 1:ncol(pa)) {
     pax <- pa0
     pax[,j] <- NA
-    pa1[,j] <- interpce(pa=pax)[,j]
+    pa1[,j] <- interpce(pa=pax)[,j] #needs co... not fixed
   }
   y3 <- sort(apply(abs(pa0-pa1),2,mean,na.rm=T))
   x3 <- names(y3) #this excludes many
@@ -834,33 +834,38 @@ arco <- function(pa=getbdh(),co=getrd(100),te=pruneztei(),phis=0,phir=0,type=c('
     pai <- interpte(pa=pa,lo=lo)
   } else if(type=='p') {
     lo <- getloco(co=co)$lo
-    pai <- interpce(pa=pa)
+    pai <- interpce(co=co,pa=pa)
   }
-  fit <- pa*NA
+  fit00 <- blend <- fit <- pa*NA
   lo$l[is.na(lo$l)] <- 0
   sbar <- apply(pai%*%lo$p,2,mean) #score means
   rbar <- apply(pai-pai%*%lo$z,2,mean) #residual means
   
-  y00 <- coredata(pai[1,,drop=FALSE]*0)
+  y00 <- coredata(pai[1,,drop=FALSE]) #was *0
   s00 <- y00%*%lo$p
   r00 <- y00*0
   
   for(i in 1:nrow(pa)) {
-    s01 <- sbar + (s00-sbar)*phis
-    r01 <- rbar + (r00-rbar)*phir
-    y01 <- s01%*%t(lo$l)+r01 #updated one step ahead forecast
+    s01 <- sbar + (s00-sbar)*phis #last period (0) updated score using no this-period data
+    r01 <- rbar + (r00-rbar)*phir #last period (0) updated residual using no this-period data
+    y01 <- s01%*%t(lo$l)+r01 #updated one step ahead (1) total forecast
     
     y11 <- coredata(pa[i,])
-    y11[is.na(y11)] <- y01[is.na(y11)] 
+    j11 <- is.na(y11)
+    y11[j11] <- y01[j11] #substitute NA with updated total forecast
     
     s00 <- y11%*%lo$p #this period score
     r00 <- y11-s00%*%t(lo$l) #this period residual
-    fit[i,] <- as.numeric(y01)
+    fit[i,] <- as.numeric(y01) #forecast
+    fit00[i,] <- blend[i,] <- as.numeric(y11) #observed where observed; otherwise forecast
+    fit00[i,j11] <- (s00%*%t(lo$l) + r00)[j11] #observed scores where not observed data
   }
   list(
     act=pa,
     fit=zoo(fit,index(pa)),
+    blend=zoo(blend,index(pa)),
     res=pa-fit,
+    fit00=zoo(fit00,index(pa)),
     MSE=sum((pa-fit)^2,na.rm=TRUE)
   )
 }
