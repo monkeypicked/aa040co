@@ -159,3 +159,10 @@ if(greprd('note18crossvalidatedpca')) {
   for (i in seq_along(lcl)) lcl[[i]] <- ilcvsumm(loocvi(pa,nfac=2^i)) 
   putrd(lcl,'note18crossvalidatedpca')
 }
+
+
+
+####2015-06-02 an annual 'max density' su
+require(aaco)
+aatopselect('p')
+getbdhgl()
