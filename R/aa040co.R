@@ -21,7 +21,7 @@ deraaco <- function(su=getrdatv("jo","su"),da=su[,sort(unique(date))],verbose=TR
   x <- vector("list",length(da))
   for(i in seq_along(da)) {
     if(verbose) print(da[i])
-    x[[i]] <- data.table(cewrap(pa=getbdh(su=su,da=da[i]),nfac=nfac,da=da[i],...))
+    x[[i]] <- data.table(cewrap(pa=getpa(su=su,da=da[i]),nfac=nfac,da=da[i],...))
   }
   putrdatv(rbindlist(x),"jo","co")
 }
@@ -65,10 +65,10 @@ getbdhgl <- function(field=list(
 #' @family utility
 #' @examples 
 #' \dontrun{
-#' getbdh()
+#' getpa()
 #' }
 #' @export
-getbdh <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)],bui],field="prem.g",win=-(1:230)) {
+getpa <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)],bui],field="prem.g",win=-(1:230)) {
   if(0==length(bui)*length(da)) {
     return(NULL) 
   } else { 
@@ -94,7 +94,7 @@ getbdh <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)]
 #' cewrap()
 #' }
 #' @export
-cewrap <- function (pa=getbdh(), normalise="NONE", nfac=20, applyvix=TRUE, mixvix=.5, bench="equal",da=max(index(pa)),...) {
+cewrap <- function (pa=getpa(), normalise="NONE", nfac=20, applyvix=TRUE, mixvix=.5, bench="equal",da=max(index(pa)),...) {
   if (applyvix) {
      vix <- na.locf(vix.g )
      vixinverse <- 1/(mixvix * vix + (1 - mixvix) * 
@@ -315,7 +315,7 @@ addbench <- function(
 #' @param pa panel with NA 
 #' @param comp text flag M/S/T for component to use
 #' @export
-interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su")),comp=c('T','M','S')) {
+interpce <- function(co=getrdatv("jo","co"),pa=getpa(su=getrdatv("jo","su")),comp=c('T','M','S')) {
   comp <- match.arg(comp)
   ce <- dtce(co)
   stopifnot(all(sort(colnames(pa))==sort(buice(ce))))
@@ -333,7 +333,7 @@ interpce <- function(co=getrdatv("jo","co"),pa=getbdh(su=getrdatv("jo","su")),co
 #' @param pa panel
 #' @param lo a 'loadings' object, named list of z, p, l (components postmult, phi, lambda)
 #' @export 
-interpte <- function(pa=getbdh(su=getrdatv("jo","su")),lo=getlote()$lo) {
+interpte <- function(pa=getpa(su=getrdatv("jo","su")),lo=getlote()$lo) {
   i <- is.na(coredata(pa))
   coredata(pa)[i] <- 0
   coredata(pa)[i] <- coredata(pa%*%lo$z)[i]
@@ -497,7 +497,7 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 #' @param pa panel
 #' @param ... passed to cewrap and thence to fms2
 #' @export
-loocvi <- function(pa=getbdh(su),...) {
+loocvi <- function(pa=getpa(su),...) {
 #  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- mhatT <- mhatS <- mhatM <- m <- pa
   mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- m <- pa
   for(i in 1:nrow(m)) {
@@ -548,7 +548,7 @@ loocvi <- function(pa=getbdh(su),...) {
 #' @param pa panel
 #' @param lo loadings object
 #' @export
-loocvj <- function(pa=getbdh(su),lo=getlote(loocv=TRUE)) {
+loocvj <- function(pa=getpa(su),lo=getlote(loocv=TRUE)) {
   #stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
   stopifnot(all.equal(colnames(pa),colnames(lo$lo$z)))
   mhat <- m <- coredata(pa)
@@ -569,7 +569,7 @@ loocvj <- function(pa=getbdh(su),lo=getlote(loocv=TRUE)) {
 #' @param niter # iterations
 #' @param myfun text name of function to apply to actual, fit, hat
 #' @export
-iterloocv <- function(pa=getbdh(su),lo=getloco(),niter=2,myfun=c("as.numeric","mattotab","as.matrix")) {
+iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","mattotab","as.matrix")) {
   myfun <- get(match.arg(myfun))
   #stopifnot(all(unlist(lapply(lapply(lapply(data.frame(t(data.frame(lapply(z,colnames)))),duplicated),"[",-1),all))))
   stopifnot(all.equal(colnames(pa),colnames(lo$lo$z)))
@@ -679,7 +679,7 @@ runco <- function(nmin=2:14,wmin=2:10) {
   su <- getrd(99)
   da <- su[,max(date)]
   co <- getrd(150)
-  pa <- getbdh(su)
+  pa <- getpa(su)
   x <- vector("list")
   
   x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,lo=getloco()))[,nmin:=NA][,wmin:=NA][,iterated:="iterated"][,model:="PCA"]
@@ -726,8 +726,8 @@ getco <- function(x=list(model='fractional',iterated='non-iterated',nmin=8,compo
 #fitplot - in a full panel that contains NA, drop size points from the non-NA, and crossplot fitted and actual
 #' @export
 fitplot <- function(size=min(1000,0.1*length(iok)),vbl=list(
-  book.price=zoonorm(log(1+getbdh(su=su,fi='bopr.g')^-1)),
-  upside=zoonorm(log(getbdh(su=su,fi='best.g')))),
+  book.price=zoonorm(log(1+getpa(su=su,fi='bopr.g')^-1)),
+  upside=zoonorm(log(getpa(su=su,fi='best.g')))),
   comp=c("M","S","T"),
   su=getrdatv("jo","su",v=2),
   ...) {
@@ -763,7 +763,7 @@ examplebui <- function(co=getrd(100),iselect=4) {
   y2 <- getbdp(mnem=data.table(data.frame(field = c("BICS_REVENUE_PERC_LEVEL_ASSIGNED"))))[x0[,bui]][,.N,bui][order(-N)]
   x2 <- y2[,bui]
   #up : large magnitude, small residual
-  pa1 <- pa0 <- zoonorm(log(getbdh(su=su,fi='best.g')))
+  pa1 <- pa0 <- zoonorm(log(getpa(su=su,fi='best.g')))
   for(j in 1:ncol(pa)) {
     pax <- pa0
     pax[,j] <- NA
@@ -824,7 +824,7 @@ colm <- function(pa,z,tau=-2:2) {
 #' @param phir ar1 on residual
 #' @param type i/f/p string for integer, fractional, pca
 #' @export
-arco <- function(pa=getbdh(),co=getrd(100),te=pruneztei(),phis=0,phir=0,type=c('i','f','p')) {
+arco <- function(pa=getpa(),co=getrd(100),te=pruneztei(),phis=0,phir=0,type=c('i','f','p')) {
   type <- match.arg(type)
   if(type=='i') {
     lo <- getlote(te=te)$lo
