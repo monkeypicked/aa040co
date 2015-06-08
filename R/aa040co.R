@@ -824,7 +824,7 @@ colm <- function(pa,z,tau=-2:2) {
 #' @param phir ar1 on residual
 #' @param type i/f/p string for integer, fractional, pca
 #' @export
-arco <- function(pa=getpa(),co=getrd(100),te=pruneztei(),phis=0,phir=0,type=c('i','f','p')) {
+arco <- function(pa=getpa(),co=getrdatv("jo","co"),te=pruneztei(),phis=0,phir=0,type=c('i','f','p')) {
   type <- match.arg(type)
   if(type=='i') {
     lo <- getlote(te=te)$lo
