@@ -16,7 +16,7 @@
 #' }
 #' @export
 #' @import data.table
-deraaco <- function(su=getrdatv("jo","su"),da=su[,sort(unique(date))],verbose=TRUE,nfac=20,...) {
+deraaco <- function(su=getrdatv("jo","su",ver),ver=getv()$ver,da=su[,sort(unique(date))],verbose=TRUE,nfac=20,...) {
   if(! exists("prem.g",envir=globalenv())) getbdhgl() #gets latest premium, vix, mcap
   x <- vector("list",length(da))
   for(i in seq_along(da)) {
