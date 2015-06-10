@@ -15,7 +15,7 @@ expect_true(exists("prem.g"))
 expect_true(exists("vix.g"))
 
 #getpa-----
-su <- getrd(140) #getrdatv("jo","su")
+su <-getrdatv("jo","su",0)
 su <- rbind(su,copy(su)[,date:=date-1000])
 win <- -100:0
 x <- getpa(su=su,win=win)
@@ -43,8 +43,10 @@ expect_equal(sort(unique(colnames(x))),sort(unique(colnames(x2))))
 #prior to first date
 expect_warning(expect_true(is.null(getpa(su=su,win=win,da=offda(su[,min(date)],-1)))))
 
+
 #cewrap-----
-fms.df <- cewrap(getpa(su))
+fms.df <- cewrap(getpa(su)) #returns output from cewrap, ie dfrce data.frame
+putrdatv(data.table(fms.df),'jo','co',0)
 
 #dfrce-----[internal to cewrap]
 #addbench-----[internal to cewrap]
@@ -56,7 +58,7 @@ co <- co[date==co[,max(date)],]
 co1 <- data.table(dfrce(dtce(co))) #round trip
 expect_equal(vcvce(dtce(co))$T,vcvce(dtce(co))$T)
 
-su <- getrd(140)#getrdatv("jo","su",v=2)
+#getrdatv("jo","su",v=2)
 #pruneztei
 expect_true(pruneztei(su,nmin=3)[,.N,bcode][,all(N>=3)])
 expect_true(pruneztef(su,nmin=3,wmin=3)[,list(.N,wgt=sum(BRPLA)),bcode][bcode!='00',all(N>=3)&all(wgt>=3)])
@@ -68,7 +70,9 @@ wmat <- wmat[,order(colSums(wmat))]
 wmat <- wmat[order(apply(sweep(wmat,MAR=2,STAT=1:ncol(wmat),FUN="*"),1,sum)),]
 expect_equal(nrow(wmat),su[,length(unique(bui))])
 myrowsums <- apply(wmat,1,sum,na.rm=TRUE)
-expect_true(all(myrowsums<1.01)&all(myrowsums>0.99))
+expect_true(all(myrowsums<1.1)&all(myrowsums>0.99))
+                                   
+if(FALSE) {
 image(wmat)
 barplot(sort(apply(wmat,2,sum,na.rm=T)),horiz=T)
 barplot(sort(apply(wmat,1,sum,na.rm=T)),horiz=T)
@@ -82,8 +86,6 @@ wmat <- wmat
 require(aaco)
 aatopselect("t")
 getbdhgl()
-su <- getrd(140) #getrdatv("jo","su",v=2)
-co <- getrd(160)
 pa <-getpa(su=su)
 phis <- 0.1
 phir <- 0.1
@@ -96,7 +98,6 @@ coredata(pax)[sample(1:length(pa),nna,rep=FALSE)] <- NA
 sum(is.na(pax))
 image(coredata(pax))
 
-co
 
 x1 <- arco(pa=pax,co=co,phir=0,phis=0,typ='p')
 #x2 <- arco(pa=pax,co=co,phir=0,phis=0,typ='i')
@@ -112,12 +113,4 @@ barplot(mser)
 barplot(mses)
 min(mses)
 min(mser)
-
-require(aaco)
-require(aabd) #for cleansu
-dirrd()
-su <- cleansu(getrd(9))[wgt>.12]
-#putrd(su,"cleansu9wgt12bp")
-getbdhgl()
-getpa(su)
-deraaco(su)
+}
