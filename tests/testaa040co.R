@@ -45,15 +45,15 @@ expect_warning(expect_true(is.null(getpa(su=su,win=win,da=offda(su[,min(date)],-
 
 
 #cewrap-----
-fms.df <- cewrap(getpa(su)) #returns output from cewrap, ie dfrce data.frame
-putrdatv(data.table(fms.df),'jo','co',0)
+fms.dt <- data.table(cewrap(getpa(su))) #returns output from cewrap, ie dfrce data.frame
+putrdatv(fms.dt,'jo','co',0)
 
 #dfrce-----[internal to cewrap]
 #addbench-----[internal to cewrap]
 #ceload-----[not useful if exists(globals)]
 
 #conversion back and forth
-co <- getrdatv("jo","co")
+co <- getrdatv("jo","co",0)
 co <- co[date==co[,max(date)],]
 co1 <- data.table(dfrce(dtce(co))) #round trip
 expect_equal(vcvce(dtce(co))$T,vcvce(dtce(co))$T)
@@ -114,3 +114,4 @@ barplot(mses)
 min(mses)
 min(mser)
 }
+
