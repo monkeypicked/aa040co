@@ -17,14 +17,16 @@
 #' @export
 #' @import data.table
 #' @import zoo
-deraaco <- function(su=getrdatv("jo","su",ver),ver=getv()$ver,da=su[,sort(unique(date))],verbose=TRUE,nfac=20,...) {
-  if(! exists("prem.g",envir=globalenv())) getbdhgl() #gets latest premium, vix, mcap
+deraaco <- function(su=getrdatv(type="su"),si=getrdatv(type="si"),verbose=TRUE,...) {
+  if(! exists("prem.g",envir=globalenv())) getbdhgl() 
+  nfac <- getsi("nfac")
+  da <- su[,sort(unique(date))]
   x <- vector("list",length(da))
   for(i in seq_along(da)) {
     if(verbose) print(da[i])
     x[[i]] <- data.table(cewrap(pa=getpa(su=su,da=da[i]),nfac=nfac,da=da[i],...))
   }
-  putrdatv(rbindlist(x),"jo","co")
+  putrdatv(rbindlist(x),type="co")
 }
 
 #' get global zoo panels
