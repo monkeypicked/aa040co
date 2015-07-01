@@ -24,9 +24,13 @@ deraaco <- function(su=getrdatv(type="su"),si=getrdatv(type="si"),verbose=TRUE,.
   x <- vector("list",length(da))
   for(i in seq_along(da)) {
     if(verbose) print(da[i])
+    if(da[i]==as.Date('2009-09-09')) browser()
     x[[i]] <- data.table(cewrap(pa=getpa(su=su,da=da[i]),nfac=nfac,da=da[i],...))
   }
-  putrdatv(rbindlist(x),type="co")
+  i <- putrdatv(rbindlist(x),type="co")
+  colidali1 <- lapply(list(minv='minv',maxd='maxd',f1='f1',unit='unit'),derpossc.dali)
+  putrdatv(colidali1,ty='colidali1')
+  i
 }
 
 #' get global zoo panels
@@ -412,6 +416,7 @@ pruneztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],nmin=3) {
     clen <- clen-2
   }
   te <- setkey(te,bcode)[setkey(tesums,startcode)][,bcode:=i.bcode][,i.bcode:=NULL][,agg:=NULL][,bagg:=NULL][bcode=="",bcode:="00"]
+  te[is.na(bcode),bcode:='1']
   te
 }
 
