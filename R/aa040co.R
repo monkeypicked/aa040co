@@ -24,13 +24,9 @@ deraaco <- function(su=getrdatv(type="su"),si=getrdatv(type="si"),verbose=TRUE,.
   x <- vector("list",length(da))
   for(i in seq_along(da)) {
     if(verbose) print(da[i])
-    if(da[i]==as.Date('2009-09-09')) browser()
     x[[i]] <- data.table(cewrap(pa=getpa(su=su,da=da[i]),nfac=nfac,da=da[i],...))
   }
-  i <- putrdatv(rbindlist(x),type="co")
-  colidali1 <- lapply(list(minv='minv',maxd='maxd',f1='f1',unit='unit'),derpossc.dali)
-  putrdatv(colidali1,ty='colidali1')
-  i
+  putrdatv(rbindlist(x),type="co")
 }
 
 #' get global zoo panels
