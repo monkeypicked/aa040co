@@ -1,8 +1,0 @@
-options(warn=1)
-options("stringsAsFactors"=FALSE)
-require(aaco)
-require(quietly=TRUE,RODBC)
-newcon()
-bloomberg <- DBcon
-.Last <- function() print(format(Sys.time(),"%a %Y-%m-%d %H:%M:%S"))
-print(format(Sys.time(),"%a %Y-%m-%d %H:%M:%S"))
