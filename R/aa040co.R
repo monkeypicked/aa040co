@@ -919,6 +919,17 @@ maxdensu <- function(years=2009:2014,nsel=1000,x=best.g) {
   rbindlist(ll)
 }
 
+#' access cod as a named list of ce
+#' 
+#' @param cod of class co
+#' @export
+getcod <- function(cod=gett('cod')) {
+  da <- cod[,unique(date)]
+  ll <- structure(vector('list',length(da)),names=da)
+  for(i in seq_along(ll)) {ll[[i]]<-aaco::dtce(cod[date==da[i]])}
+  ll
+}
+
 
 #returns a list co, tei, tef
 # getz <- function(ico=100,isu=99,da=su[,max(date)],nmin=3,wmin=3) {
