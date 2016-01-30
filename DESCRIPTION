@@ -9,3 +9,4 @@ Depends:
     aautil,aapa,aace,data.table,quadprog
 Description: covariance estimation
 License: contract
+RoxygenNote: 5.0.1

@@ -948,3 +948,12 @@ getcod <- function(cod=gett('cod')) {
 #        tef=
 #      )
 # }
+
+
+#' @export
+mscecomp <- function(x,ret) {
+  sco <- scoce(x, ret)
+  ldg <- ldgce(x)
+  stopifnot(all.equal(colnames(ret),rownames(ldg)))
+  list(M=mz(sco[,1,drop=FALSE] %*% t(ldg[,1,drop=FALSE])),S=mz(sco[,-1,drop=FALSE] %*% t(ldg[,-1,drop=FALSE])),T=mz(sco %*% t(ldg)))
+}
