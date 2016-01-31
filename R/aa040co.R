@@ -495,27 +495,72 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
   sol
 }
 
+# #' returns fitted and loocv fit on pa, using pca
+# #' 
+# #' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
+# #' @param pa panel
+# #' @param ... passed to cewrap and thence to fms2
+# #' @export
+# loocvi <- function(pa=getpa(su),...) {
+# #  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- mhatT <- mhatS <- mhatM <- m <- pa
+#   mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- m <- pa
+#   for(i in 1:nrow(m)) {
+#     mi <- m[-i,]
+#     ce <- dtce(data.table(cewrap(pa=mi,...)))
+#     #this section identical to mhati, but harder to adapt for ij
+# #     mscec <- mscecomp(ce,m[i,,drop=FALSE])
+# #     mhatM[i,] <- mscec$M
+# #     mhatS[i,] <- mscec$S
+# #     mhatT[i,] <- mscec$T
+#     #
+#     fmp <- ce$fmp/as.numeric(ce$sdev)
+#     ldg <- ce$loadings*as.numeric(ce$sdev)
+#     sco <- mz(coredata(pa)[i, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
+#     mhatiM[i,] <- mz(sco[, 1, drop = FALSE] %*% t(ldg[, 1, drop = FALSE]))
+#     mhatiS[i,] <- mz(sco[,-1, drop = FALSE] %*% t(ldg[,-1, drop = FALSE]))
+#     mhatiT[i,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
+#     zdrop <- function(fmp,ldg,j=c("M","S","T")) {
+#       jj <- switch(match.arg(j),M=1,S=2:ncol(fmp),T=1:ncol(fmp))
+#       z <- fmp[,jj,drop=F]%*%t(ldg[,jj,drop=F])
+#       dd <- diag(z)
+#       iinv <- which((1e-10<dd) & (dd<1))
+#       scal <- rep(1,length(dd))
+#       scal[iinv] <- 1/(1-dd[iinv])
+#       diag(z) <- 0
+#       sweep(z,MAR=2,FUN="*",STAT=scal)      
+#     }
+#     #zd <- zdrop(fmp,ldg,"S")
+#     mhatijM[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
+#     mhatijS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
+#     mhatijT[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"T")[fulce(ce),])
+#   }
+# #   mhatlist <- lapply(list(M=mhatM,S=mhatS,T=mhatT),as.numeric)
+#   mhatilist <- lapply(list(M=mhatiM,S=mhatiS,T=mhatiT),as.numeric)
+#   mhatijlist <- lapply(list(M=mhatijM,S=mhatijS,T=mhatijT),as.numeric)
+#   mfitlist <- lapply(mscecomp(dtce(data.table(cewrap(pa=m,...))),m),as.numeric)
+# #   names(mhatlist) <- paste0('mhat',names(mscec))
+#   names(mhatilist) <- paste0('mtwiddlei',c('M','S','T'))
+#   names(mhatijlist) <- paste0('mtwiddleij',c('M','S','T'))
+#   names(mfitlist) <- paste0('mhat',c('M','S','T'))
+# # c(list(act=as.numeric(m)),mhatlist,mhatilist,mhatijlist,mfitlist)
+#   c(list(act=as.numeric(m)),mhatilist,mhatijlist,mfitlist)
+# }
+
 #' returns fitted and loocv fit on pa, using pca
 #' 
 #' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
 #' @param pa panel
 #' @param ... passed to cewrap and thence to fms2
 #' @export
-loocvi <- function(pa=getpa(su),...) {
-#  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- mhatT <- mhatS <- mhatM <- m <- pa
-  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- m <- pa
+loocviFun <- function(zd=gett('zd'),...) {
+  m <- zd
+  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- m*NA
   for(i in 1:nrow(m)) {
     mi <- m[-i,]
-    ce <- dtce(data.table(cewrap(pa=mi,...)))
-    #this section identical to mhati, but harder to adapt for ij
-#     mscec <- mscecomp(ce,m[i,,drop=FALSE])
-#     mhatM[i,] <- mscec$M
-#     mhatS[i,] <- mscec$S
-#     mhatT[i,] <- mscec$T
-    #
+    ce <- fms2(x=mi,...)
     fmp <- ce$fmp/as.numeric(ce$sdev)
     ldg <- ce$loadings*as.numeric(ce$sdev)
-    sco <- mz(coredata(pa)[i, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
+    sco <- mz(coredata(zd)[i, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
     mhatiM[i,] <- mz(sco[, 1, drop = FALSE] %*% t(ldg[, 1, drop = FALSE]))
     mhatiS[i,] <- mz(sco[,-1, drop = FALSE] %*% t(ldg[,-1, drop = FALSE]))
     mhatiT[i,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
@@ -529,22 +574,20 @@ loocvi <- function(pa=getpa(su),...) {
       diag(z) <- 0
       sweep(z,MAR=2,FUN="*",STAT=scal)      
     }
-    #zd <- zdrop(fmp,ldg,"S")
     mhatijM[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
     mhatijS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
     mhatijT[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"T")[fulce(ce),])
   }
-#   mhatlist <- lapply(list(M=mhatM,S=mhatS,T=mhatT),as.numeric)
   mhatilist <- lapply(list(M=mhatiM,S=mhatiS,T=mhatiT),as.numeric)
   mhatijlist <- lapply(list(M=mhatijM,S=mhatijS,T=mhatijT),as.numeric)
-  mfitlist <- lapply(mscecomp(dtce(data.table(cewrap(pa=m,...))),m),as.numeric)
-#   names(mhatlist) <- paste0('mhat',names(mscec))
+  mfitlist <- lapply(mscecomp(fms2(x=m,...),m),as.numeric)
   names(mhatilist) <- paste0('mtwiddlei',c('M','S','T'))
   names(mhatijlist) <- paste0('mtwiddleij',c('M','S','T'))
   names(mfitlist) <- paste0('mhat',c('M','S','T'))
-# c(list(act=as.numeric(m)),mhatlist,mhatilist,mhatijlist,mfitlist)
-  c(list(act=as.numeric(m)),mhatilist,mhatijlist,mfitlist)
+  loocvid <- as.data.table(c(list(act=as.numeric(m)),mhatilist,mhatijlist,mfitlist))
+  putt(loocvid)
 }
+
 
 #' returns fitted and loocv fit on pa, using te
 #' 
@@ -622,13 +665,14 @@ iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","ma
 #' 
 #' @param x result with iter, fit, act
 #' @export
-ilcvsumm <- function(x=iterloocv(...),...) {
+ilcvsFun <- function(loocvid=gett('loocvid'),...) {
   tab <- NULL
-  for(i in 2:length(x)) {
-    mo <- summary(lm((paste0("act ~ ",names(x)[i])),data=data.frame(x)))
+  for(i in 2:length(loocvid)) {
+    mo <- summary(lm((paste0("act ~ ",names(loocvid)[i])),data=data.frame(loocvid)))
     tab <- data.table(rbind(tab,data.frame(rsq=mo$r.squared,coef=mo$coefficients[2,1])))
   }
-  setkey(tab[,component:=names(x)[-1]],component)[]
+  ilcvsd <- setkey(tab[,component:=names(loocvid)[-1]],component)[]
+  putt(ilcvsd)
 }
 
 # #summarises correlation of 'start' with final iteration
