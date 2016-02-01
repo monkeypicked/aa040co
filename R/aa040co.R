@@ -546,6 +546,22 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 #   c(list(act=as.numeric(m)),mhatilist,mhatijlist,mfitlist)
 # }
 
+#' @export
+zdrop <- function(fmp,ldg,j=c("M","S","MS"),dodrop=T) {
+  jj <- switch(match.arg(j),M=1,S=2:ncol(fmp),MS=1:ncol(fmp))
+  z <- fmp[,jj,drop=F]%*%t(ldg[,jj,drop=F])
+  if(dodrop) {
+    dd <- diag(z)
+    iinv <- which((1e-10<dd) & (dd<1))
+    scal <- rep(1,length(dd))
+    scal[iinv] <- 1/(1-dd[iinv])
+    diag(z) <- 0
+    z <- sweep(z,MAR=2,FUN="*",STAT=scal)
+  }
+  z
+}
+
+
 #' returns fitted and loocv fit on pa, using pca
 #' 
 #' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
@@ -554,7 +570,7 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 #' @export
 loocviFun <- function(zd=gett('zd'),...) {
   m <- zd
-  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- m*NA
+  mhatijMS <- mhatijS <- mhatijM <- mhatiMS <- mhatiS <- mhatiM <- m*NA
   for(i in 1:nrow(m)) {
     mi <- m[-i,]
     ce <- fms2(x=mi,...)
@@ -563,31 +579,42 @@ loocviFun <- function(zd=gett('zd'),...) {
     sco <- mz(coredata(zd)[i, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
     mhatiM[i,] <- mz(sco[, 1, drop = FALSE] %*% t(ldg[, 1, drop = FALSE]))
     mhatiS[i,] <- mz(sco[,-1, drop = FALSE] %*% t(ldg[,-1, drop = FALSE]))
-    mhatiT[i,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
-    zdrop <- function(fmp,ldg,j=c("M","S","T")) {
-      jj <- switch(match.arg(j),M=1,S=2:ncol(fmp),T=1:ncol(fmp))
-      z <- fmp[,jj,drop=F]%*%t(ldg[,jj,drop=F])
-      dd <- diag(z)
-      iinv <- which((1e-10<dd) & (dd<1))
-      scal <- rep(1,length(dd))
-      scal[iinv] <- 1/(1-dd[iinv])
-      diag(z) <- 0
-      sweep(z,MAR=2,FUN="*",STAT=scal)      
-    }
+    mhatiMS[i,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
     mhatijM[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
     mhatijS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
-    mhatijT[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"T")[fulce(ce),])
+    mhatijMS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"MS")[fulce(ce),])
   }
-  mhatilist <- lapply(list(M=mhatiM,S=mhatiS,T=mhatiT),as.numeric)
-  mhatijlist <- lapply(list(M=mhatijM,S=mhatijS,T=mhatijT),as.numeric)
-  mfitlist <- lapply(mscecomp(fms2(x=m,...),m),as.numeric)
-  names(mhatilist) <- paste0('mtwiddlei',c('M','S','T'))
-  names(mhatijlist) <- paste0('mtwiddleij',c('M','S','T'))
-  names(mfitlist) <- paste0('mhat',c('M','S','T'))
-  loocvid <- as.data.table(c(list(act=as.numeric(m)),mhatilist,mhatijlist,mfitlist))
+  ce <- fms2(x=mi,...)
+  mfit <- lapply(lapply(lapply(mscecomp(ce,m),coredata),data.table,keep.rownames=T),melt,id='rn')
+  ms <- setkey(rbind(
+    melt(data=data.table(coredata(m),keep.rownames=T),id='rn')[,comp:='T'][,xv:='no'],
+    melt(data=data.table(coredata(mhatiM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='i'],
+    melt(data=data.table(coredata(mhatiS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='i'],
+    melt(data=data.table(coredata(mhatiMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='i'],
+    melt(data=data.table(coredata(mhatijM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='ij'],
+    melt(data=data.table(coredata(mhatijS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='ij'],
+    melt(data=data.table(coredata(mhatijMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='ij'],
+    mfit$S[,comp:='S'][,xv:='no'],
+    mfit$M[,comp:='M'][,xv:='no'],
+    mfit$T[,comp:='MS'][,xv:='no']
+  ),rn,variable)
+  totl <- melt(data=data.table(coredata(m),keep.rownames=T),id='rn')[,list(rn,variable,Total=value)]
+  setkey(ms,rn,variable)
+  setkey(totl,rn,variable)
+  loocvid <- setnames(totl[ms],old=c('rn','variable'),new=c('date','ticker'))
   putt(loocvid)
 }
 
+
+#' @export
+zdropFun <- function(zd=gett('zd'),comp=c('M','S','MS'),dodrop=T,...) {
+  comp <- match.arg(comp)
+  ce <- fms2(x=zd,...)
+  fmp <- ce$fmp/as.numeric(ce$sdev)
+  ldg <- ce$loadings*as.numeric(ce$sdev)
+  zdropd <- zdrop(fmp=fmp,ldg=ldg,j=comp,dodrop=dodrop)
+  putt(zdropd)
+}
 
 #' returns fitted and loocv fit on pa, using te
 #' 
@@ -666,12 +693,9 @@ iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","ma
 #' @param x result with iter, fit, act
 #' @export
 ilcvsFun <- function(loocvid=gett('loocvid'),...) {
-  tab <- NULL
-  for(i in 2:length(loocvid)) {
-    mo <- summary(lm((paste0("act ~ ",names(loocvid)[i])),data=data.frame(loocvid)))
-    tab <- data.table(rbind(tab,data.frame(rsq=mo$r.squared,coef=mo$coefficients[2,1])))
-  }
-  ilcvsd <- setkey(tab[,component:=names(loocvid)[-1]],component)[]
+  co <- setkey(loocvid[comp!='T',list(coef=summary(lm(Total~value))$coefficients[2,1]),'comp,xv'],comp,xv)
+  r2 <- setkey(loocvid[comp!='T',list(r2=summary(lm(Total~value))$r.squared),'comp,xv'],comp,xv)
+  ilcvsd <- co[r2]
   putt(ilcvsd)
 }
 
