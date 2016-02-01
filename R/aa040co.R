@@ -546,6 +546,56 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 #   c(list(act=as.numeric(m)),mhatilist,mhatijlist,mfitlist)
 # }
 
+
+
+#' returns fitted and loocv fit on pa, using pca
+#' 
+#' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
+#' @param pa panel
+#' @param ... passed to cewrap and thence to fms2
+#' @export
+loocviFun <- function(zd=gett('zd'),...) {
+  m <- zd
+  mhatijMS <- mhatijS <- mhatijM <- mhatiMS <- mhatiS <- mhatiM <- m*NA
+  for(i in 1:nrow(m)) {
+    mi <- m[-i,]
+    ce <- fmswrap(x=mi,...)
+    fmp <- ce$fmp/as.numeric(ce$sdev)
+    ldg <- ce$loadings*as.numeric(ce$sdev)
+    sco <- mz(coredata(zd)[i, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
+    mhatiM[i,] <- mz(sco[, 1, drop = FALSE] %*% t(ldg[, 1, drop = FALSE]))
+    mhatiS[i,] <- mz(sco[,-1, drop = FALSE] %*% t(ldg[,-1, drop = FALSE]))
+    mhatiMS[i,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
+    mhatijM[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
+    mhatijS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
+    mhatijMS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"MS")[fulce(ce),])
+  }
+  ce <- fmswrap(x=mi,...)
+  #cen <- fmswrap(x=rollmeanr(mi,k=5),...)
+  mfit  <- lapply(lapply(lapply(mscecomp(ce ,m),coredata),data.table,keep.rownames=T),melt,id='rn')
+  #mfitn <- lapply(lapply(lapply(mscecomp(cen,m),coredata),data.table,keep.rownames=T),melt,id='rn')
+  ms <- setkey(rbind(
+    melt(data=data.table(coredata(m),keep.rownames=T),id='rn')[,comp:='T'][,xv:='no'][,nper:=1],
+    melt(data=data.table(coredata(mhatiM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='i'][,nper:=1],
+    melt(data=data.table(coredata(mhatiS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='i'][,nper:=1],
+    melt(data=data.table(coredata(mhatiMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='i'][,nper:=1],
+    melt(data=data.table(coredata(mhatijM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='ij'][,nper:=1],
+    melt(data=data.table(coredata(mhatijS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='ij'][,nper:=1],
+    melt(data=data.table(coredata(mhatijMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='ij'][,nper:=1],
+    mfit$S[,comp:='S'][,xv:='no'][,nper:=1],
+    mfit$M[,comp:='M'][,xv:='no'][,nper:=1],
+    mfit$T[,comp:='MS'][,xv:='no'][,nper:=1]#,
+    #mfitn$S[,comp:='S'][,xv:='no'][,nper:=5],
+    #mfitn$M[,comp:='M'][,xv:='no'][,nper:=5],
+    #mfitn$T[,comp:='MS'][,xv:='no'][,nper:=5]
+  ),rn,variable)
+  totl <- melt(data=data.table(coredata(m),keep.rownames=T),id='rn')[,list(rn,variable,Total=value)]
+  setkey(ms,rn,variable)
+  setkey(totl,rn,variable)
+  loocvid <- setnames(totl[ms],old=c('rn','variable'),new=c('date','ticker'))
+  putt(loocvid)
+}
+
 #' @export
 zdrop <- function(fmp,ldg,j=c("M","S","MS"),dodrop=T) {
   jj <- switch(match.arg(j),M=1,S=2:ncol(fmp),MS=1:ncol(fmp))
@@ -561,55 +611,13 @@ zdrop <- function(fmp,ldg,j=c("M","S","MS"),dodrop=T) {
   z
 }
 
-
-#' returns fitted and loocv fit on pa, using pca
-#' 
-#' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
-#' @param pa panel
-#' @param ... passed to cewrap and thence to fms2
+#calc the z matrix (fit operator) and optionally substitute out the LHS from the RHS
 #' @export
-loocviFun <- function(zd=gett('zd'),...) {
-  m <- zd
-  mhatijMS <- mhatijS <- mhatijM <- mhatiMS <- mhatiS <- mhatiM <- m*NA
-  for(i in 1:nrow(m)) {
-    mi <- m[-i,]
-    ce <- fms2(x=mi,...)
-    fmp <- ce$fmp/as.numeric(ce$sdev)
-    ldg <- ce$loadings*as.numeric(ce$sdev)
-    sco <- mz(coredata(zd)[i, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
-    mhatiM[i,] <- mz(sco[, 1, drop = FALSE] %*% t(ldg[, 1, drop = FALSE]))
-    mhatiS[i,] <- mz(sco[,-1, drop = FALSE] %*% t(ldg[,-1, drop = FALSE]))
-    mhatiMS[i,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
-    mhatijM[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
-    mhatijS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
-    mhatijMS[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"MS")[fulce(ce),])
-  }
-  ce <- fms2(x=mi,...)
-  mfit <- lapply(lapply(lapply(mscecomp(ce,m),coredata),data.table,keep.rownames=T),melt,id='rn')
-  ms <- setkey(rbind(
-    melt(data=data.table(coredata(m),keep.rownames=T),id='rn')[,comp:='T'][,xv:='no'],
-    melt(data=data.table(coredata(mhatiM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='i'],
-    melt(data=data.table(coredata(mhatiS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='i'],
-    melt(data=data.table(coredata(mhatiMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='i'],
-    melt(data=data.table(coredata(mhatijM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='ij'],
-    melt(data=data.table(coredata(mhatijS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='ij'],
-    melt(data=data.table(coredata(mhatijMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='ij'],
-    mfit$S[,comp:='S'][,xv:='no'],
-    mfit$M[,comp:='M'][,xv:='no'],
-    mfit$T[,comp:='MS'][,xv:='no']
-  ),rn,variable)
-  totl <- melt(data=data.table(coredata(m),keep.rownames=T),id='rn')[,list(rn,variable,Total=value)]
-  setkey(ms,rn,variable)
-  setkey(totl,rn,variable)
-  loocvid <- setnames(totl[ms],old=c('rn','variable'),new=c('date','ticker'))
-  putt(loocvid)
-}
-
-
-#' @export
-zdropFun <- function(zd=gett('zd'),comp=c('M','S','MS'),dodrop=T,...) {
+zdropFun <- function(zd=gett('zd'),comp=c('M','S','MS'),dodrop=T,nper=1,...) {
+  nper <- as.numeric(nper)
   comp <- match.arg(comp)
-  ce <- fms2(x=zd,...)
+  if(nper>1) { zd <- rollmeanr(zd,k=nper) }
+  ce <- fmswrap(x=zd,...)
   fmp <- ce$fmp/as.numeric(ce$sdev)
   ldg <- ce$loadings*as.numeric(ce$sdev)
   zdropd <- zdrop(fmp=fmp,ldg=ldg,j=comp,dodrop=dodrop)
@@ -693,8 +701,8 @@ iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","ma
 #' @param x result with iter, fit, act
 #' @export
 ilcvsFun <- function(loocvid=gett('loocvid'),...) {
-  co <- setkey(loocvid[comp!='T',list(coef=summary(lm(Total~value))$coefficients[2,1]),'comp,xv'],comp,xv)
-  r2 <- setkey(loocvid[comp!='T',list(r2=summary(lm(Total~value))$r.squared),'comp,xv'],comp,xv)
+  co <- setkey(loocvid[comp!='T',list(coef=summary(lm(Total~value))$coefficients[2,1]),'comp,xv,nper'],comp,xv,nper)
+  r2 <- setkey(loocvid[comp!='T',list(r2=summary(lm(Total~value))$r.squared),'comp,xv,nper'],comp,xv,nper)
   ilcvsd <- co[r2]
   putt(ilcvsd)
 }
@@ -1024,4 +1032,14 @@ mscecomp <- function(x,ret) {
   ldg <- ldgce(x)
   stopifnot(all.equal(colnames(ret),rownames(ldg)))
   list(M=mz(sco[,1,drop=FALSE] %*% t(ldg[,1,drop=FALSE])),S=mz(sco[,-1,drop=FALSE] %*% t(ldg[,-1,drop=FALSE])),T=mz(sco %*% t(ldg)))
+}
+
+
+#' @export
+fmswrap <- function(x,
+                    lambda=getp(sn='co',pn='lambda'),
+                    k=getp(sn='co',pn='k'),
+                    shrink=getp(sn='co',pn='shrink'),
+                    ...) {
+  fms2(x=x,lambda=lambda,range.factors=c(k,k),shrinkb=shrink,...)
 }

@@ -5,8 +5,7 @@ Version: 1.0
 Date: 2014-12-10
 Author: Max Probable
 Maintainer: <maxprobable@gmail.com>
-Depends:
-    aautil,aace,data.table,quadprog
+Depends:  aautil,aace,data.table,quadprog
 Description: covariance estimation
 License: contract
 RoxygenNote: 5.0.1
