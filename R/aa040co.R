@@ -547,6 +547,72 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 # }
 
 
+foldFun <- function(zd=gett('zd'),nfold=5,method='random') {
+  lapply(lapply(as.list(1:nfold),'==',sample(x=1:nfold,size=nrow(zd),rep=T)),which)
+}
+
+#returns the partition i/o for each fold, with condition SUM(o)==all ie complete and non-overlapping (in this case loocv)
+#' @export
+lcv1Fun <- function(zd=gett('zd'),outfold=as.list(foldFun(zd))) {
+  stopifnot(identical(1:nrow(zd),sort(unlist(outfold))))
+  n <- nrow(zd)
+  ff <- function(x,Y){list(iout=x,iin=setdiff(Y,x))}
+  ll1 <- lapply(outfold,ff,Y=1:n)
+  lcv1d <- setNames(c(list(list(iin=(1:n),iout=(1:n))),ll1),0:length(outfold))
+  stopifnot(all(n==lapply(lapply(lapply(lcv1d,unlist),unique),length)))
+  putt(lcv1d)
+}
+#x <- lcv1Fun(out=list(1:floor(nrow(zd)/2),floor(nrow(zd)/2+1):nrow(zd)))
+#x <- lcv1Fun()
+
+#list of models
+#' @export
+lcv2Fun <- function(zd=gett('zd'),lcv1d=gett('lcv1d'),FUN=fmswrap,...) {
+  ff <- function(i,zd,FF){FF(zd[i$iin,,drop=F])}
+  lcv2d <- llply(lcv1d,ff,zd=zd,FF=FUN,...,.progress='text')
+  putt(lcv2d)
+}
+
+#fitted, in this case components
+#' @export
+lcv3Fun <- function(zd=gett('zd'),lcv1d=gett('lcv1d'),lcv2d=gett('lcv2d')) {
+  nfold <- length(lcv2d)
+  mhatijMS <- mhatijS <- mhatijM <- mhatiMS <- mhatiS <- mhatiM <- zd*NA
+  for(i in 2:nfold) { #2 because first fold is all/all
+    iout <- lcv1d[[i]][['iout']]
+    mi <- zd[iout,,drop=F]
+    ce <- lcv2d[[i]]
+    fmp <- ce$fmp/as.numeric(ce$sdev)
+    ldg <- ce$loadings*as.numeric(ce$sdev)
+    sco <- mz(coredata(zd)[iout, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
+    mhatiM[iout,] <- mz(sco[, 1, drop = FALSE] %*% t(ldg[, 1, drop = FALSE]))
+    mhatiS[iout,] <- mz(sco[,-1, drop = FALSE] %*% t(ldg[,-1, drop = FALSE]))
+    mhatiMS[iout,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
+    mhatijM[iout,] <- zd[iout, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
+    mhatijS[iout,] <- zd[iout, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
+    mhatijMS[iout,] <- zd[iout, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"MS")[fulce(ce),])
+  }
+  ce <- lcv2d[[1]] #insample
+  mfit  <- lapply(lapply(lapply(mscecomp(ce ,zd),coredata),data.table,keep.rownames=T),melt,id='rn')
+  ms <- setkey(rbind(
+    melt(data=data.table(coredata(zd),keep.rownames=T),id='rn')[,comp:='T'][,xv:='no'][,nper:=1],
+    melt(data=data.table(coredata(mhatiM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='i'][,nper:=1],
+    melt(data=data.table(coredata(mhatiS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='i'][,nper:=1],
+    melt(data=data.table(coredata(mhatiMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='i'][,nper:=1],
+    melt(data=data.table(coredata(mhatijM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='ij'][,nper:=1],
+    melt(data=data.table(coredata(mhatijS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='ij'][,nper:=1],
+    melt(data=data.table(coredata(mhatijMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='ij'][,nper:=1],
+    mfit$S[,comp:='S'][,xv:='no'][,nper:=1],
+    mfit$M[,comp:='M'][,xv:='no'][,nper:=1],
+    mfit$T[,comp:='MS'][,xv:='no'][,nper:=1]
+  ),rn,variable)
+  totl <- melt(data=data.table(coredata(zd),keep.rownames=T),id='rn')[,list(rn,variable,Total=value)]
+  setkey(ms,rn,variable)
+  setkey(totl,rn,variable)
+  loocvid <- setnames(totl[ms],old=c('rn','variable'),new=c('date','ticker'))
+  putt(loocvid)
+}
+
 
 #' returns fitted and loocv fit on pa, using pca
 #' 
