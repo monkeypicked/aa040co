@@ -1,16 +1,17 @@
+
 #' top-level derive method for covariance table
 #'
 #' loads data to global if not exists; loops through date estimating co, convert to data.table, save to rd
-#' 
+#'
 #' Details (body)
-#' 
+#'
 #' @param su securityuniverse object
 #' @param da date of class Date
 #' @param verbose flag for printing date
 #' @param nfac number of factors
 #' @param ... passed to cewrap
 #' @family top level
-#' @examples 
+#' @examples
 #' \dontrun{
 #' deraaco()
 #' }
@@ -18,7 +19,7 @@
 #' @import data.table
 #' @import zoo
 deraaco <- function(su=getrdatv(type="su"),si=getrdatv(type="si"),verbose=TRUE,...) {
-  if(! exists("prem.g",envir=globalenv())) getbdhgl() 
+  if(! exists("prem.g",envir=globalenv())) getbdhgl()
   nfac <- getsi("nfac")
   da <- su[,sort(unique(date))]
   x <- vector("list",length(da))
@@ -32,10 +33,10 @@ deraaco <- function(su=getrdatv(type="su"),si=getrdatv(type="si"),verbose=TRUE,.
 #' get global zoo panels
 #'
 #' loads timeseries required for co estimation
-#' 
+#'
 #' @param field named list of derived panels to load; they are assigned in the global environment, with the name in the list
 #' @family internal
-#' @examples 
+#' @examples
 #' \dontrun{
 #' getbdhgl()
 #' exists('prem.g') #true
@@ -57,24 +58,24 @@ getbdhgl <- function(field=list(
 #' return windowed zoo panel from global panel
 #'
 #' Description (body)
-#' 
+#'
 #' Details (body)
-#' 
+#'
 #' @param su securityuniverse object
 #' @param da date of class Date, forms the datum for the lags in win
 #' @param bui identifiers for inclusion
 #' @param field name of global zoo panel from which to extract
 #' @param win window normally negative (prior) lags referred to da
 #' @family utility
-#' @examples 
+#' @examples
 #' \dontrun{
 #' getpa()
 #' }
 #' @export
 getpa <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)],bui],field="prem.g",win=-(1:230)) {
   if(0==length(bui)*length(da)) {
-    return(NULL) 
-  } else { 
+    return(NULL)
+  } else {
     get(field,envir=globalenv())[as.Date(offda(da,win)),bui]
   }
 }
@@ -82,9 +83,9 @@ getpa <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)],
 #' derive ce
 #'
 #' high-level covariance estimation
-#' 
+#'
 #' takes panel of returns, applies normalisations, estimates ce, adds benchmark data, returns as dataframe
-#' 
+#'
 #' @param pa zoo panel (normally returns)
 #' @param normalise flag to redistribute - see aautil::zoonorm()
 #' @param nfac # factors in PCA
@@ -92,7 +93,7 @@ getpa <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)],
 #' @param mixvix bayes adjustment to vix rescaling, strength of shrinkage to mean
 #' @param bench type of benchmark weights
 #' @param ... passed to fms2
-#' @examples 
+#' @examples
 #' \dontrun{
 #' cewrap()
 #' }
@@ -100,15 +101,15 @@ getpa <- function(su=su.g,da=su[,max(date)],bui=su[date==su[date<=da,max(date)],
 cewrap <- function (pa=getpa(), normalise="NONE", nfac=20, applyvix=TRUE, mixvix=.5, bench="equal",da=max(index(pa)),...) {
   if (applyvix) {
      vix <- na.locf(vix.g )
-     vixinverse <- 1/(mixvix * vix + (1 - mixvix) * 
+     vixinverse <- 1/(mixvix * vix + (1 - mixvix) *
                         rollapply(vix,6 * 52, mean, align = "right", na.rm = T, fill = 'extend'))
-     pa <- sweep(pa, MARGIN = 1, FUN = "*", 
+     pa <- sweep(pa, MARGIN = 1, FUN = "*",
                  STAT = vixinverse[index(pa),]/as.numeric(vixinverse[as.Date(da), ]))
   }
   if(normalise!="NONE") { pa <- zoonorm(pa,dimension=normalise) }
   fm <- fms2(
           pa,
-          range.factors = c(nfac,nfac), 
+          range.factors = c(nfac,nfac),
           ...)
   fm1 <- addbench(fm,mcap = mcap.g[match(as.Date(da), index(mcap.g)),,drop = FALSE], bench = bench)
   dfrce(fm1,da=da)
@@ -120,17 +121,17 @@ cewrap <- function (pa=getpa(), normalise="NONE", nfac=20, applyvix=TRUE, mixvix
 #'
 #'
 #' largely for historical reasons ce objects are converted to a dataframe - this function converts the dataframe back to a 'ce'
-#' 
+#'
 #' @param cetab a data.frame or data.table
 #' @param dat the date to extract
 #' @family conversion
-#' @examples 
+#' @examples
 #' \dontrun{
 #' require(aace)
 #' vcvce(dtce(getrdatv("jo","co"))) #covariance matrices
 #' }
 #' @export
-dtce <- function (cetab, dat = cetab[,max(date)]) 
+dtce <- function (cetab, dat = cetab[,max(date)])
 {
   stopifnot(length(dat) == 1)
   #stopifnot(valda(dat) && length(dat) == 1)
@@ -154,11 +155,11 @@ dtce <- function (cetab, dat = cetab[,max(date)])
   ifull <- which(cetab[,jfull]=="1")
   factors <- 1:ncol(cetab[,jloadings,drop=FALSE])
   ans <- list(
-    loadings=as.matrix(cetab[,jloadings,drop=FALSE]), 
-    fmp=as.matrix(cetab[,jfmp,drop=FALSE]),        
-    hpl=as.matrix(cetab[,jhpl,drop=FALSE]),        
-    method=as.matrix(cetab[,jmethod,drop=FALSE]),                   
-    full=as.matrix(cetab[,jfull,drop=FALSE]),     
+    loadings=as.matrix(cetab[,jloadings,drop=FALSE]),
+    fmp=as.matrix(cetab[,jfmp,drop=FALSE]),
+    hpl=as.matrix(cetab[,jhpl,drop=FALSE]),
+    method=as.matrix(cetab[,jmethod,drop=FALSE]),
+    full=as.matrix(cetab[,jfull,drop=FALSE]),
     uniqueness=as.matrix(cetab[,juniqueness,drop=FALSE]),
     sdev=as.matrix(cetab[,jsdev,drop=FALSE]),
     qua=as.matrix(cetab[,jqua,drop=FALSE]),
@@ -196,17 +197,17 @@ dtce <- function (cetab, dat = cetab[,max(date)])
 #'
 #'
 #' largely for historical reasons ce objects are converted to a dataframe co
-#' 
+#'
 #' @param x an object of class ce; see package aace
 #' @param dat the date to assign it
 #' @family conversion
-#' @examples 
+#' @examples
 #' \dontrun{
 #' require(aace)
 #' dfrce(dtce(getrdatv("jo","co"))) #a round trip: get a stored co object, convert to ce for one date, convert back to co
 #' }
 #' @export
-dfrce <- function(x,dat=max(index(x))) 
+dfrce <- function(x,dat=max(index(x)))
 {
   colnames(x$loadings) <- 1:ncol(x$loadings)  #fix colnames because data.frame prepends object name
   colnames(x$fmp) <- 1:ncol(x$fmp)
@@ -241,7 +242,7 @@ dfrce <- function(x,dat=max(index(x)))
 #' @export
 addbench <- function(
   ce,
-  mcap=t(ce$loadings[,1,drop=FALSE]*NA), 
+  mcap=t(ce$loadings[,1,drop=FALSE]*NA),
   bench=c("equal","minvar","mcap")
 )
 {
@@ -287,8 +288,8 @@ addbench <- function(
 
 #--------na interpolation section
 
-# getzco - covariance-based (PCA) interpolator 
-# 
+# getzco - covariance-based (PCA) interpolator
+#
 # @export
 # getzco <- function(co=getrd(100),part=c('z','psi')) {
 #  part <- match.arg(part)
@@ -304,7 +305,7 @@ addbench <- function(
 #      M=fmpce(ce)[,1,drop=FALSE],
 #      S=fmpce(ce)[,-1,drop=FALSE],
 #      T=fmpce(ce)
-#    )   
+#    )
 #  }
 # }
 
@@ -312,10 +313,10 @@ addbench <- function(
 #both the interp functions could/should iterate which would be easy with a loop on penultimate line and no paz
 
 #' interpolates using pca
-#' 
+#'
 #' single step interpolation of M,S components using co, starting from 0
 #' @param co covariance object
-#' @param pa panel with NA 
+#' @param pa panel with NA
 #' @param comp text flag M/S/T for component to use
 #' @export
 interpce <- function(co=getrdatv("jo","co"),pa=getpa(su=getrdatv("jo","su")),comp=c('T','M','S')) {
@@ -331,11 +332,11 @@ interpce <- function(co=getrdatv("jo","co"),pa=getpa(su=getrdatv("jo","su")),com
 
 
 #' interpolates using regression on te
-#' 
+#'
 #' single step interpolation of M,S components using co, starting from 0
 #' @param pa panel
 #' @param lo a 'loadings' object, named list of z, p, l (components postmult, phi, lambda)
-#' @export 
+#' @export
 interpte <- function(pa=getpa(su=getrdatv("jo","su")),lo=getlote()$lo) {
   i <- is.na(coredata(pa))
   coredata(pa)[i] <- 0
@@ -343,8 +344,8 @@ interpte <- function(pa=getpa(su=getrdatv("jo","su")),lo=getlote()$lo) {
   pa
 }
 
-#' generate covariance-based (PCA) interpolator 
-#' 
+#' generate covariance-based (PCA) interpolator
+#'
 #' returns three 'loadings' objects named lo, l, p
 #' @param co covariance object
 #' @export
@@ -372,7 +373,7 @@ getloco <- function(co=getrd(100)) {
 }
 
 # getzte - industry-based interpolator
-# 
+#
 # the te object is read from rd, and has normally been read back from directories
 # this works but is cumbersome/not needed so has been replaced by getzte that uses autoprune, see below
 # getzte <- function(te=getrd(103),su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE) {
@@ -395,7 +396,7 @@ getloco <- function(co=getrd(100)) {
 
 
 #' integer industries prune
-#' 
+#'
 #' returns data.table with cols: bui bcode BRPLA
 #' @param su security universe
 #' @param da date
@@ -417,7 +418,7 @@ pruneztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],nmin=3) {
 }
 
 #' fractional industries prune
-#' 
+#'
 #' returns data.table with cols: bui bcode BRPLA
 #' currently silently drops bui that have no fractional info - this needs a rethink
 #' @param su security universe
@@ -442,7 +443,7 @@ pruneztef <- function(su=getrdatv("jo","su",2),da=su[,max(date)],wmin=2,nmin=4) 
 
 ###REPLACED WITH getlote but different o/p structure
 # z for integer industries pruned to nmin/node
-# 
+#
 # for part=psi, returns the postmultiplication matrix for factor scores; for part=z it is the matrix for 'fit'
 # getztei <- function(su=getrdatv("jo","su",2),da=su[,max(date)],loocv=FALSE,nmin=3,wmin=3,type=c('i','f'),part=c('z','psi')) {
 #   type <- match.arg(type)
@@ -450,7 +451,7 @@ pruneztef <- function(su=getrdatv("jo","su",2),da=su[,max(date)],wmin=2,nmin=4) 
 #   if(type=='i') {
 #     te <- pruneztei(su=su,da=da,nmin=nmin)
 #   } else {
-#     te <- pruneztef(su=su,da=da,nmin=nmin,wmin=wmin)    
+#     te <- pruneztef(su=su,da=da,nmin=nmin,wmin=wmin)
 #   }
 #   x <- tabtomat(data.frame(te))
 #   x[is.na(x)] <- 0
@@ -470,9 +471,9 @@ pruneztef <- function(su=getrdatv("jo","su",2),da=su[,max(date)],wmin=2,nmin=4) 
 # }
 
 #' loadings object from industry object
-#' 
+#'
 #' @param te industries
-#' @param loocv flac to drop 
+#' @param loocv flac to drop
 #' @export
 getlote <- function(te=pruneztei(),loocv=FALSE) {
   x <- tabtomat(data.frame(te))
@@ -496,7 +497,7 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 }
 
 # #' returns fitted and loocv fit on pa, using pca
-# #' 
+# #'
 # #' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
 # #' @param pa panel
 # #' @param ... passed to cewrap and thence to fms2
@@ -527,7 +528,7 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 #       scal <- rep(1,length(dd))
 #       scal[iinv] <- 1/(1-dd[iinv])
 #       diag(z) <- 0
-#       sweep(z,MAR=2,FUN="*",STAT=scal)      
+#       sweep(z,MAR=2,FUN="*",STAT=scal)
 #     }
 #     #zd <- zdrop(fmp,ldg,"S")
 #     mhatijM[i,] <- m[i, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
@@ -547,75 +548,21 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 # }
 
 
-foldFun <- function(zd=gett('zd'),nfold=5,method='random') {
-  lapply(lapply(as.list(1:nfold),'==',sample(x=1:nfold,size=nrow(zd),rep=T)),which)
+
+#' @export
+fmswrap <- function(x,
+                    lambda=getp(sn='co',pn='lambda'),
+                    k=getp(sn='co',pn='k'),
+                    shrinkb=getp(sn='co',pn='shrinkb')) {
+  fms2(x=x,lambda=lambda,range.factors=c(k,k),shrinkb=shrinkb,weight=seq(1,1,length=nrow(x)))
 }
 
-#returns the partition i/o for each fold, with condition SUM(o)==all ie complete and non-overlapping (in this case loocv)
-#' @export
-lcv1Fun <- function(zd=gett('zd'),outfold=as.list(foldFun(zd))) {
-  stopifnot(identical(1:nrow(zd),sort(unlist(outfold))))
-  n <- nrow(zd)
-  ff <- function(x,Y){list(iout=x,iin=setdiff(Y,x))}
-  ll1 <- lapply(outfold,ff,Y=1:n)
-  lcv1d <- setNames(c(list(list(iin=(1:n),iout=(1:n))),ll1),0:length(outfold))
-  stopifnot(all(n==lapply(lapply(lapply(lcv1d,unlist),unique),length)))
-  putt(lcv1d)
-}
-#x <- lcv1Fun(out=list(1:floor(nrow(zd)/2),floor(nrow(zd)/2+1):nrow(zd)))
-#x <- lcv1Fun()
 
-#list of models
-#' @export
-lcv2Fun <- function(zd=gett('zd'),lcv1d=gett('lcv1d'),FUN=fmswrap,...) {
-  ff <- function(i,zd,FF){FF(zd[i$iin,,drop=F])}
-  lcv2d <- llply(lcv1d,ff,zd=zd,FF=FUN,...,.progress='text')
-  putt(lcv2d)
-}
 
-#fitted, in this case components
-#' @export
-lcv3Fun <- function(zd=gett('zd'),lcv1d=gett('lcv1d'),lcv2d=gett('lcv2d')) {
-  nfold <- length(lcv2d)
-  mhatijMS <- mhatijS <- mhatijM <- mhatiMS <- mhatiS <- mhatiM <- zd*NA
-  for(i in 2:nfold) { #2 because first fold is all/all
-    iout <- lcv1d[[i]][['iout']]
-    mi <- zd[iout,,drop=F]
-    ce <- lcv2d[[i]]
-    fmp <- ce$fmp/as.numeric(ce$sdev)
-    ldg <- ce$loadings*as.numeric(ce$sdev)
-    sco <- mz(coredata(zd)[iout, fulce(ce), drop = FALSE] %*% fmp[fulce(ce),, drop = FALSE])
-    mhatiM[iout,] <- mz(sco[, 1, drop = FALSE] %*% t(ldg[, 1, drop = FALSE]))
-    mhatiS[iout,] <- mz(sco[,-1, drop = FALSE] %*% t(ldg[,-1, drop = FALSE]))
-    mhatiMS[iout,] <- mz(sco[,  , drop = FALSE] %*% t(ldg[,  , drop = FALSE]))
-    mhatijM[iout,] <- zd[iout, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"M")[fulce(ce),])
-    mhatijS[iout,] <- zd[iout, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"S")[fulce(ce),])
-    mhatijMS[iout,] <- zd[iout, fulce(ce), drop = FALSE] %*% (zdrop(fmp,ldg,"MS")[fulce(ce),])
-  }
-  ce <- lcv2d[[1]] #insample
-  mfit  <- lapply(lapply(lapply(mscecomp(ce ,zd),coredata),data.table,keep.rownames=T),melt,id='rn')
-  ms <- setkey(rbind(
-    melt(data=data.table(coredata(zd),keep.rownames=T),id='rn')[,comp:='T'][,xv:='no'][,nper:=1],
-    melt(data=data.table(coredata(mhatiM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='i'][,nper:=1],
-    melt(data=data.table(coredata(mhatiS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='i'][,nper:=1],
-    melt(data=data.table(coredata(mhatiMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='i'][,nper:=1],
-    melt(data=data.table(coredata(mhatijM),keep.rownames=T),id='rn')[,comp:='M'][,xv:='ij'][,nper:=1],
-    melt(data=data.table(coredata(mhatijS),keep.rownames=T),id='rn')[,comp:='S'][,xv:='ij'][,nper:=1],
-    melt(data=data.table(coredata(mhatijMS),keep.rownames=T),id='rn')[,comp:='MS'][,xv:='ij'][,nper:=1],
-    mfit$S[,comp:='S'][,xv:='no'][,nper:=1],
-    mfit$M[,comp:='M'][,xv:='no'][,nper:=1],
-    mfit$T[,comp:='MS'][,xv:='no'][,nper:=1]
-  ),rn,variable)
-  totl <- melt(data=data.table(coredata(zd),keep.rownames=T),id='rn')[,list(rn,variable,Total=value)]
-  setkey(ms,rn,variable)
-  setkey(totl,rn,variable)
-  loocvid <- setnames(totl[ms],old=c('rn','variable'),new=c('date','ticker'))
-  putt(loocvid)
-}
 
 
 #' returns fitted and loocv fit on pa, using pca
-#' 
+#'
 #' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
 #' @param pa panel
 #' @param ... passed to cewrap and thence to fms2
@@ -684,6 +631,7 @@ zdropFun <- function(zd=gett('zd'),comp=c('M','S','MS'),dodrop=T,nper=1,...) {
   comp <- match.arg(comp)
   if(nper>1) { zd <- rollmeanr(zd,k=nper) }
   ce <- fmswrap(x=zd,...)
+  #ce <- fms2(x=zd,...)
   fmp <- ce$fmp/as.numeric(ce$sdev)
   ldg <- ce$loadings*as.numeric(ce$sdev)
   zdropd <- zdrop(fmp=fmp,ldg=ldg,j=comp,dodrop=dodrop)
@@ -691,7 +639,7 @@ zdropFun <- function(zd=gett('zd'),comp=c('M','S','MS'),dodrop=T,nper=1,...) {
 }
 
 #' returns fitted and loocv fit on pa, using te
-#' 
+#'
 #' drops each column in turn of pa, ie each identifier bui - note there is NO iteration, no substitutio of the 'left out', it is just fitted which is more correct
 #' @param pa panel
 #' @param lo loadings object
@@ -710,7 +658,7 @@ loocvj <- function(pa=getpa(su),lo=getlote(loocv=TRUE)) {
 }
 
 #' returns fitted and loocv fit on pa, using te
-#' 
+#'
 #' iterloocv - drops each observation in turn and replaces it with an iterated
 #' @param pa panel
 #' @param lo loadings object
@@ -763,7 +711,7 @@ iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","ma
 # }
 
 #' summary of loadings object
-#' 
+#'
 #' @param x result with iter, fit, act
 #' @export
 ilcvsFun <- function(loocvid=gett('loocvid'),...) {
@@ -778,7 +726,7 @@ ilcvsFun <- function(loocvid=gett('loocvid'),...) {
 # iterate0 <- function(n=10,niter=5,FUN=mean,...) {
 #   suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
 # }
-# 
+#
 # #wrapper to iterate2, applies 'drop' ie sets NA a specified fraction of data
 # # @export
 # iterate1 <- function(seed=1,pa=getbdh(su),z=getzco()$T,idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
@@ -799,8 +747,8 @@ ilcvsFun <- function(loocvid=gett('loocvid'),...) {
 #   if(0<idropfraction) x[1:idrop,'start'] <- coredata(pa)[ina]
 #   x
 # }
-# 
-# #iterate2 - inner function applying z 
+#
+# #iterate2 - inner function applying z
 # # @export
 # iterate2 <- function(m,z,initial,niter=5) {
 #   ina <- which(is.na(m))
@@ -815,7 +763,7 @@ ilcvsFun <- function(loocvid=gett('loocvid'),...) {
 # }
 
 #' script in a function
-#' 
+#'
 #' @export
 runco <- function(nmin=2:14,wmin=2:10) {
   require(aapa)
@@ -827,10 +775,10 @@ runco <- function(nmin=2:14,wmin=2:10) {
   co <- getrd(150)
   pa <- getpa(su)
   x <- vector("list")
-  
+
   x[[length(x)+1]] <- ilcvsumm(iterloocv(pa,lo=getloco()))[,nmin:=NA][,wmin:=NA][,iterated:="iterated"][,model:="PCA"]
   x[[length(x)+1]] <- ilcvsumm(loocvi(pa))[,nmin:=NA][,wmin:=NA][,iterated:="non-iterated"][,model:="PCA"]
-  
+
   #fractional - nmin
   for(i in seq_along(nmin)) {
     print(i)
@@ -861,7 +809,7 @@ runco <- function(nmin=2:14,wmin=2:10) {
 }
 
 #' accessor/filter for 'co' results
-#' 
+#'
 #' @param x named list defining output filter
 #' @export
 getco <- function(x=list(model='fractional',iterated='non-iterated',nmin=8,component='mhat')) {
@@ -902,7 +850,7 @@ fitplot <- function(size=min(1000,0.1*length(iok)),vbl=list(
 #'plot stocks to illustrate yield fit via PCA
 #'
 #' @export
-examplebui <- function(co=getrd(100),iselect=4) { 
+examplebui <- function(co=getrd(100),iselect=4) {
   x0 <- getrd(100)[order(uniqueness),list(bui,uniqueness,rank(uniqueness))]
   y1 <- getrd(100)[order(uniqueness),list(bui,uniqueness,rank(uniqueness))]
   x1 <- y1[,bui]
@@ -953,16 +901,16 @@ colm <- function(pa,z,tau=-2:2) {
     x1 <- x1+lag(x2,k=tau[i],na.pad=TRUE)
   }
   x3 <- data.table(mattotab(x1))[!is.na(field)]
-  
+
 #get valid M,S,R,bui,t and same for t+tau
-#regress 
+#regress
 #T on lagged MS, delta MS, lagged R
 #MS on lagged MS and delta MS
 #R on lagged R
 }
 
-#' interpolation of missing 
-#' 
+#' interpolation of missing
+#'
 #' @param pa panel
 #' @param co covariance
 #' @param te industry
@@ -986,20 +934,20 @@ arco <- function(pa=getpa(),co=getrdatv("jo","co"),te=pruneztei(),phis=0,phir=0,
   lo$l[is.na(lo$l)] <- 0
   sbar <- apply(pai%*%lo$p,2,mean) #score means
   rbar <- apply(pai-pai%*%lo$z,2,mean) #residual means
-  
+
   y00 <- coredata(pai[1,,drop=FALSE]) #was *0
   s00 <- y00%*%lo$p
   r00 <- y00*0
-  
+
   for(i in 1:nrow(pa)) {
     s01 <- sbar + (s00-sbar)*phis #last period (0) updated score using no this-period data
     r01 <- rbar + (r00-rbar)*phir #last period (0) updated residual using no this-period data
     y01 <- s01%*%t(lo$l)+r01 #updated one step ahead (1) total forecast
-    
+
     y11 <- coredata(pa[i,])
     j11 <- is.na(y11)
     y11[j11] <- y01[j11] #substitute NA with updated total forecast
-    
+
     s00 <- y11%*%lo$p #this period score
     r00 <- y11-s00%*%t(lo$l) #this period residual
     fit[i,] <- as.numeric(y01) #forecast
@@ -1045,7 +993,7 @@ myrepscr <- function(da=seq.Date(from=as.Date('2006-12-31'),by=365.25,len=8),...
 
 
 #' security universe scoring high on multiple criteria (in last period, no na, high mcap)
-#' 
+#'
 #' @param years universe is reviewed each yearend
 #' @param nsel number to select
 #' @param x panel for testing
@@ -1062,7 +1010,7 @@ maxdensu <- function(years=2009:2014,nsel=1000,x=best.g) {
 }
 
 #' access cod as a named list of ce
-#' 
+#'
 #' @param cod of class co
 #' @export
 getcod <- function(cod=gett('cod')) {
@@ -1101,11 +1049,3 @@ mscecomp <- function(x,ret) {
 }
 
 
-#' @export
-fmswrap <- function(x,
-                    lambda=getp(sn='co',pn='lambda'),
-                    k=getp(sn='co',pn='k'),
-                    shrink=getp(sn='co',pn='shrink'),
-                    ...) {
-  fms2(x=x,lambda=lambda,range.factors=c(k,k),shrinkb=shrink,...)
-}

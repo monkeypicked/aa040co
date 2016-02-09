@@ -115,3 +115,10 @@ min(mses)
 min(mser)
 }
 
+require(aaco)
+require(testthat)
+x <-lcv1Fun(nfold=5,method='random',win=100,nsam=1000)
+expect_equal(length(x),5)
+x <-lcv1Fun(nfold=5,method='roll',win=100,nsam=1000)
+expect_equal(length(x),5)
+
