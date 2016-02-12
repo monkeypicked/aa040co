@@ -1,4 +1,3 @@
-
 #' top-level derive method for covariance table
 #'
 #' loads data to global if not exists; loops through date estimating co, convert to data.table, save to rd
@@ -497,11 +496,6 @@ getlote <- function(te=pruneztei(),loocv=FALSE) {
 }
 
 # #' returns fitted and loocv fit on pa, using pca
-# #'
-# #' drops each row in turn and estimates new co; fits the row - this only makes sense for ce and is the only version that makes sense for ce
-# #' @param pa panel
-# #' @param ... passed to cewrap and thence to fms2
-# #' @export
 # loocvi <- function(pa=getpa(su),...) {
 # #  mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- mhatT <- mhatS <- mhatM <- m <- pa
 #   mhatijT <- mhatijS <- mhatijM <- mhatiT <- mhatiS <- mhatiM <- m <- pa
@@ -714,8 +708,6 @@ iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","ma
 #THE FOLLOWING REPLACED WITH aasdlpkg::lcv4
 #' summary of loadings object
 #'
-#' @param x result with iter, fit, act
-#' @export
 # ilcvsFun <- function(loocvid=gett('loocvid'),...) {
 #   co <- setkey(loocvid[comp!='T',list(coef=summary(lm(Total~value))$coefficients[2,1]),'comp,xv,nper'],comp,xv,nper)
 #   r2 <- setkey(loocvid[comp!='T',list(r2=summary(lm(Total~value))$r.squared),'comp,xv,nper'],comp,xv,nper)
@@ -724,13 +716,11 @@ iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","ma
 # }
 
 # #summarises correlation of 'start' with final iteration
-# # @export
 # iterate0 <- function(n=10,niter=5,FUN=mean,...) {
 #   suppressWarnings(do.call(FUN,list(unlist(lapply(lapply(lapply(1:n,FUN=iterate1,niter=niter,...),FUN=cor),FUN=`[`,1,niter)))))
 # }
 #
 # #wrapper to iterate2, applies 'drop' ie sets NA a specified fraction of data
-# # @export
 # iterate1 <- function(seed=1,pa=getbdh(su),z=getzco()$T,idropfraction=0,initial=mean(pa,na.rm=TRUE),niter=5) {
 #   m <- coredata(pa)
 #   if(0<idropfraction) {
@@ -751,7 +741,6 @@ iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","ma
 # }
 #
 # #iterate2 - inner function applying z
-# # @export
 # iterate2 <- function(m,z,initial,niter=5) {
 #   ina <- which(is.na(m))
 #   res <- matrix(0*NA,length(ina),niter+2,dimnames=list(rownames(m)[ina],c('start',c(as.character(0:niter)))))
