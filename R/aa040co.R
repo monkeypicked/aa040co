@@ -710,16 +710,18 @@ iterloocv <- function(pa=getpa(su),lo=getloco(),niter=2,myfun=c("as.numeric","ma
 #   tab
 # }
 
+
+#THE FOLLOWING REPLACED WITH aasdlpkg::lcv4
 #' summary of loadings object
 #'
 #' @param x result with iter, fit, act
 #' @export
-ilcvsFun <- function(loocvid=gett('loocvid'),...) {
-  co <- setkey(loocvid[comp!='T',list(coef=summary(lm(Total~value))$coefficients[2,1]),'comp,xv,nper'],comp,xv,nper)
-  r2 <- setkey(loocvid[comp!='T',list(r2=summary(lm(Total~value))$r.squared),'comp,xv,nper'],comp,xv,nper)
-  ilcvsd <- co[r2]
-  putt(ilcvsd)
-}
+# ilcvsFun <- function(loocvid=gett('loocvid'),...) {
+#   co <- setkey(loocvid[comp!='T',list(coef=summary(lm(Total~value))$coefficients[2,1]),'comp,xv,nper'],comp,xv,nper)
+#   r2 <- setkey(loocvid[comp!='T',list(r2=summary(lm(Total~value))$r.squared),'comp,xv,nper'],comp,xv,nper)
+#   ilcvsd <- co[r2]
+#   putt(ilcvsd)
+# }
 
 # #summarises correlation of 'start' with final iteration
 # # @export
